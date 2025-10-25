@@ -68,6 +68,9 @@ export class WebRTCService {
         timestamp: serverTimestamp(),
       });
 
+      // シグナリング監視を開始
+      this.startSignalingListener();
+
       return {
         id: sessionRef.key!,
         chatRoomId: this.chatRoomId,
@@ -106,6 +109,9 @@ export class WebRTCService {
         joined: true,
         timestamp: serverTimestamp(),
       });
+
+      // シグナリング監視を開始
+      this.startSignalingListener();
 
       console.log('Joined call successfully');
 
@@ -194,6 +200,21 @@ export class WebRTCService {
     }
   }
 
+  // シグナリング監視開始
+  private startSignalingListener(): void {
+    if (!this.signalingRef) return;
+
+    console.log('Starting signaling listener for:', this.callId);
+    
+    // シグナリングデータの監視
+    onValue(this.signalingRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        this.handleSignalingData(data);
+      }
+    });
+  }
+
   // シグナリングデータ処理
   private async handleSignalingData(data: any): Promise<void> {
     if (!this.peerConnection) return;
@@ -251,6 +272,7 @@ export class WebRTCService {
           from: this.userId,
           timestamp: serverTimestamp(),
         });
+        console.log('Offer sent to:', this.signalingRef.path);
       }
     } catch (error) {
       console.error('Failed to send offer:', error);

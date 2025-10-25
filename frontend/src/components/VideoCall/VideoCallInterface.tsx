@@ -68,6 +68,9 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
         setLocalStream(localStream);
       }
 
+      // オファー送信
+      await webrtcServiceRef.current.sendOffer();
+
       // リモートストリーム監視
       const checkRemoteStream = () => {
         const remoteStream = webrtcServiceRef.current?.getRemoteStream();
@@ -82,6 +85,45 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
     } catch (error) {
       console.error('Failed to start call:', error);
       alert('通話の開始に失敗しました。カメラとマイクへのアクセスを許可してください。');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const joinCall = async () => {
+    setLoading(true);
+    try {
+      if (!user?.uid) {
+        throw new Error('ユーザーが認証されていません');
+      }
+
+      // WebRTC サービス初期化
+      webrtcServiceRef.current = new WebRTCService(user.uid, chatRoomId);
+      
+      // 通話参加
+      await webrtcServiceRef.current.joinCall();
+      setIsInCall(true);
+
+      // ローカルストリーム取得
+      const localStream = webrtcServiceRef.current.getLocalStream();
+      if (localStream) {
+        setLocalStream(localStream);
+      }
+
+      // リモートストリーム監視
+      const checkRemoteStream = () => {
+        const remoteStream = webrtcServiceRef.current?.getRemoteStream();
+        if (remoteStream) {
+          setRemoteStream(remoteStream);
+        } else {
+          setTimeout(checkRemoteStream, 1000);
+        }
+      };
+      checkRemoteStream();
+      
+    } catch (error) {
+      console.error('Failed to join call:', error);
+      alert('通話の参加に失敗しました。カメラとマイクへのアクセスを許可してください。');
     } finally {
       setLoading(false);
     }
@@ -147,13 +189,22 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
             ⚠️ 通話を開始する前に、カメラとマイクへのアクセスを許可してください。
           </p>
         </div>
-        <button
-          onClick={startCall}
-          disabled={loading}
-          className="start-call-button"
-        >
-          {loading ? '準備中...' : '📹 通話を開始'}
-        </button>
+        <div className="call-buttons">
+          <button
+            onClick={startCall}
+            disabled={loading}
+            className="start-call-button"
+          >
+            {loading ? '準備中...' : '📹 通話を開始'}
+          </button>
+          <button
+            onClick={joinCall}
+            disabled={loading}
+            className="join-call-button"
+          >
+            {loading ? '参加中...' : '📞 通話に参加'}
+          </button>
+        </div>
       </div>
     );
   }

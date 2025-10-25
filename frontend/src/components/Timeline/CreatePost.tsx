@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { postsApi } from '../../services/api';
+import { postsFirestoreApi } from '../../services/firestore';
 import { useAuth } from '../../context/AuthContext';
 import type { Post } from '../../types/api';
 

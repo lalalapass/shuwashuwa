@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { profileApi, friendRequestsApi } from '../services/api';
+import { friendRequestsFirestoreApi } from '../services/firestore';
 import { useAuth } from '../context/AuthContext';
 import type { Profile } from '../types/api';
 

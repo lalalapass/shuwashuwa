@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { postsApi } from '../services/api';
+import { postsFirestoreApi } from '../services/firestore';
 import PostCard from '../components/Timeline/PostCard';
 import CreatePost from '../components/Timeline/CreatePost';
 import type { Post } from '../types/api';
@@ -14,7 +14,7 @@ const TimelinePage: React.FC = () => {
 
   const loadPosts = async () => {
     try {
-      const response = await postsApi.getPosts();
+      const response = await postsFirestoreApi.getPosts();
       setPosts(response.posts);
     } catch (error) {
       console.error('Failed to load posts:', error);

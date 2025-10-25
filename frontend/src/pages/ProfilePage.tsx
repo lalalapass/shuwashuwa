@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { profileApi } from '../services/api';
+// import { profileApi } from '../services/api'; // Firebase移行により不要
 import { useAuth } from '../context/AuthContext';
 import type { Profile } from '../types/api';
 

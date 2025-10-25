@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { chatApi } from '../services/api';
+import { chatFirestoreApi } from '../services/firestore';
 import { useAuth } from '../context/AuthContext';
 import ChatRoomList from '../components/Chat/ChatRoomList';
 import type { ChatRoom } from '../types/api';

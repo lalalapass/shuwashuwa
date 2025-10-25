@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { usersApi } from '../services/api';
+import { usersFirestoreApi } from '../services/firestore';
 import { useAuth } from '../context/AuthContext';
 import UserSearch from '../components/Users/UserSearch';
 import UserCard from '../components/Users/UserCard';

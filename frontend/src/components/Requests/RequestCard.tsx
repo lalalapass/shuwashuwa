@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { friendRequestsApi } from '../../services/api';
+import { friendRequestsFirestoreApi } from '../../services/firestore';
 import type { FriendRequest } from '../../types/api';
 
 interface RequestCardProps {
   request: FriendRequest;
-  onRequestHandled: (requestId: number, action: 'accept' | 'reject', chatRoomId?: number) => void;
+  onRequestHandled: (requestId: string, action: 'accept' | 'reject', chatRoomId?: string) => void;
 }
 
 const RequestCard: React.FC<RequestCardProps> = ({ request, onRequestHandled }) => {
@@ -15,7 +15,7 @@ const RequestCard: React.FC<RequestCardProps> = ({ request, onRequestHandled }) 
     setIsHandling(true);
 
     try {
-      const response = await friendRequestsApi.respondToRequest(request.id, action);
+      const response = await friendRequestsFirestoreApi.handleRequest(request.id, action);
       onRequestHandled(request.id, action, response.chatRoomId);
     } catch (error) {
       console.error('Failed to handle request:', error);

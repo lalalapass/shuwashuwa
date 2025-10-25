@@ -3,8 +3,8 @@ import type { ChatRoom } from '../../types/api';
 
 interface ChatRoomListProps {
   rooms: ChatRoom[];
-  selectedRoomId?: number;
-  onRoomSelect: (roomId: number) => void;
+  selectedRoomId?: string;
+  onRoomSelect: (roomId: string) => void;
 }
 
 const ChatRoomList: React.FC<ChatRoomListProps> = ({ rooms, selectedRoomId, onRoomSelect }) => {

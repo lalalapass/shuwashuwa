@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { authApi } from '../../services/api';
 
 interface RegisterFormProps {
   onSwitchToLogin: () => void;
@@ -9,14 +8,16 @@ interface RegisterFormProps {
 const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
   const [formData, setFormData] = useState({
     username: '',
+    email: '',
     password: '',
+    confirmPassword: '',
     signLanguageLevel: '初級',
     firstLanguage: '音声言語',
     profileText: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { register } = useAuth();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -27,20 +28,21 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
     setError('');
     setLoading(true);
 
+    if (formData.password !== formData.confirmPassword) {
+      setError('パスワードが一致しません');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const registerResponse = await authApi.register(formData);
-      if (registerResponse.user) {
-        // Registration successful, now login
-        const loginResponse = await authApi.login({
-          username: formData.username,
-          password: formData.password,
-        });
-        if (loginResponse.token && loginResponse.user) {
-          login(loginResponse.token, loginResponse.user);
-        }
-      }
+      await register(formData.email, formData.password, {
+        username: formData.username,
+        signLanguageLevel: formData.signLanguageLevel,
+        firstLanguage: formData.firstLanguage,
+        profileText: formData.profileText,
+      });
     } catch (err: any) {
-      setError(err.response?.data?.message || '登録に失敗しました');
+      setError(err.message || '登録に失敗しました');
     } finally {
       setLoading(false);
     }
@@ -62,12 +64,34 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchToLogin }) => {
           />
         </div>
         <div className="form-group">
+          <label htmlFor="email">メールアドレス</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        <div className="form-group">
           <label htmlFor="password">パスワード</label>
           <input
             type="password"
             id="password"
             name="password"
             value={formData.password}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor="confirmPassword">パスワード確認</label>
+          <input
+            type="password"
+            id="confirmPassword"
+            name="confirmPassword"
+            value={formData.confirmPassword}
             onChange={handleChange}
             required
           />

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { chatApi } from '../services/api';
+import { chatFirestoreApi } from '../services/firestore';
 import { useAuth } from '../context/AuthContext';
 import MessageList from '../components/Chat/MessageList';
 import MessageInput from '../components/Chat/MessageInput';
@@ -21,15 +21,33 @@ const ChatDetailPage: React.FC = () => {
 
   useEffect(() => {
     if (roomId) {
-      loadRoomAndMessages(parseInt(roomId));
+      loadRoomAndMessages(roomId);
     }
   }, [roomId]);
 
-  const loadRoomAndMessages = async (roomId: number) => {
+  // リアルタイムメッセージリスナー
+  useEffect(() => {
+    if (!roomId) return;
+
+    const unsubscribe = chatFirestoreApi.subscribeToMessages(roomId, (newMessages) => {
+      setMessages(newMessages);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [roomId]);
+
+  const loadRoomAndMessages = async (roomId: string) => {
+    if (!currentUser) {
+      navigate('/chat');
+      return;
+    }
+    
     setLoading(true);
     try {
       // Load room info
-      const roomsResponse = await chatApi.getRooms();
+      const roomsResponse = await chatFirestoreApi.getRooms(currentUser.uid);
       const foundRoom = roomsResponse.rooms?.find(r => r.id === roomId);
       
       if (!foundRoom) {
@@ -41,9 +59,10 @@ const ChatDetailPage: React.FC = () => {
       
       // Load messages
       setMessagesLoading(true);
-      const messagesResponse = await chatApi.getMessages(roomId);
+      const messagesResponse = await chatFirestoreApi.getMessages(roomId);
       setMessages(messagesResponse.messages || []);
     } catch (error) {
+      console.error('Failed to load room and messages:', error);
       navigate('/chat');
     } finally {
       setLoading(false);
@@ -52,13 +71,18 @@ const ChatDetailPage: React.FC = () => {
   };
 
   const handleSendMessage = async (data: { messageText?: string; videoUrl?: string }) => {
-    if (!roomId || sending) return;
+    if (!roomId || !currentUser || sending) return;
     
     setSending(true);
     try {
-      const response = await chatApi.sendMessage(parseInt(roomId), data);
-      setMessages(prev => [...prev, response.message]);
+      const response = await chatFirestoreApi.sendMessage(roomId, {
+        senderId: currentUser.uid,
+        messageText: data.messageText,
+        videoUrl: data.videoUrl,
+      });
+      // Message will be added to the list via real-time listener
     } catch (error) {
+      console.error('Failed to send message:', error);
       alert('メッセージの送信に失敗しました');
     } finally {
       setSending(false);
@@ -125,7 +149,7 @@ const ChatDetailPage: React.FC = () => {
                 ) : (
                   <MessageList
                     messages={messages}
-                    currentUserId={currentUser.id}
+                    currentUserId={currentUser.uid}
                   />
                 )}
               </div>

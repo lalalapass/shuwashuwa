@@ -1,31 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { friendRequestsApi } from '../services/api';
+import { friendRequestsFirestoreApi } from '../services/firestore';
+import { useAuth } from '../context/AuthContext';
 import RequestCard from '../components/Requests/RequestCard';
 import type { FriendRequest } from '../types/api';
 
 const RequestsPage: React.FC = () => {
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [handledRequests, setHandledRequests] = useState<Set<number>>(new Set());
+  const [handledRequests, setHandledRequests] = useState<Set<string>>(new Set());
+  const { user: currentUser, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    loadRequests();
-  }, []);
+    if (!authLoading && currentUser) {
+      loadRequests();
+    }
+  }, [currentUser, authLoading]);
 
   const loadRequests = async () => {
+    if (!currentUser) {
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     try {
-      const response = await friendRequestsApi.getReceivedRequests();
+      const response = await friendRequestsFirestoreApi.getRequests(currentUser.uid);
       setRequests(response.requests);
     } catch (error) {
-      // Error handling without logging
+      console.error('Failed to load requests:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRequestHandled = (requestId: number, action: 'accept' | 'reject', chatRoomId?: number) => {
-    setHandledRequests((prev: Set<number>) => new Set(prev).add(requestId));
+  const handleRequestHandled = (requestId: string, action: 'accept' | 'reject', chatRoomId?: string) => {
+    setHandledRequests((prev: Set<string>) => new Set(prev).add(requestId));
     
     if (action === 'accept' && chatRoomId) {
       // Show success message for accepted request

@@ -1,11 +1,33 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged,
+  User as FirebaseUser
+} from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase/config';
+
+interface User {
+  uid: string;
+  username: string;
+  signLanguageLevel: string;
+  firstLanguage: string;
+  profileText?: string;
+  gender?: string;
+  ageGroup?: string;
+  iconUrl?: string;
+}
 
 interface AuthContextType {
-  token: string | null;
-  user: { id: number; username: string } | null;
-  login: (token: string, user: { id: number; username: string }) => void;
-  logout: () => void;
+  user: User | null;
+  firebaseUser: FirebaseUser | null;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, userData: Omit<User, 'uid'>) => Promise<void>;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,39 +45,67 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<{ id: number; username: string } | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
-    }
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setFirebaseUser(firebaseUser);
+      
+      if (firebaseUser) {
+        try {
+          // Firestore からユーザー情報を取得
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            const userObj = { uid: firebaseUser.uid, ...userData } as User;
+            setUser(userObj);
+          } else {
+            setUser(null);
+          }
+        } catch (error) {
+          console.error('Error fetching user data from Firestore:', error);
+          setUser(null);
+        }
+      } else {
+        setUser(null);
+      }
+      
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const login = (newToken: string, newUser: { id: number; username: string }) => {
-    setToken(newToken);
-    setUser(newUser);
-    localStorage.setItem('token', newToken);
-    localStorage.setItem('user', JSON.stringify(newUser));
+  const login = async (email: string, password: string) => {
+    await signInWithEmailAndPassword(auth, email, password);
   };
 
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  const register = async (email: string, password: string, userData: Omit<User, 'uid'>) => {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const uid = userCredential.user.uid;
+    
+    // Firestore にユーザー情報を保存
+    await setDoc(doc(db, 'users', uid), {
+      ...userData,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  };
+
+  const logout = async () => {
+    await signOut(auth);
   };
 
   const value = {
-    token,
     user,
+    firebaseUser,
     login,
+    register,
     logout,
-    isAuthenticated: !!token,
+    isAuthenticated: !!firebaseUser,
+    loading,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

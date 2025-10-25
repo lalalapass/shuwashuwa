@@ -22,7 +22,7 @@ const AppContent: React.FC = () => {
   const { isAuthenticated } = useAuth();
 
   return (
-    <Router>
+    <Router basename="/shuwashuwa" future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <div className="app">
         <Navigation />
         <main className="main-content">

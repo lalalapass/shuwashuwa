@@ -9,7 +9,7 @@ const ProfilePage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, loading: authLoading } = useAuth();
 
   // Form state
   const [formData, setFormData] = useState({
@@ -22,23 +22,47 @@ const ProfilePage: React.FC = () => {
   });
 
   useEffect(() => {
-    loadProfile();
-  }, []);
+    if (!authLoading) {
+      loadProfile();
+    }
+  }, [authLoading]);
 
   const loadProfile = async () => {
     setLoading(true);
+    setError('');
+    
     try {
-      const response = await profileApi.getProfile();
-      setProfile(response.profile);
+      if (!currentUser) {
+        setError('ユーザーが認証されていません。ログインしてください。');
+        setLoading(false);
+        return;
+      }
+
+      // Firebase移行後は AuthContext の user オブジェクトから直接取得
+      const profile: Profile = {
+        id: currentUser.uid,
+        userId: currentUser.uid,
+        username: currentUser.username,
+        signLanguageLevel: currentUser.signLanguageLevel,
+        firstLanguage: currentUser.firstLanguage,
+        profileText: currentUser.profileText,
+        gender: currentUser.gender,
+        ageGroup: currentUser.ageGroup,
+        iconUrl: currentUser.iconUrl,
+        createdAt: new Date(), // Firebase移行後は適切な日付を設定
+        updatedAt: new Date(),
+      };
       
-      // Initialize form data
+      setProfile(profile);
+      
+      // Initialize form data - Firestore から取得した値は既に日本語
       setFormData({
-        signLanguageLevel: getSignLanguageLevelJapanese(response.profile.signLanguageLevel),
-        firstLanguage: getFirstLanguageJapanese(response.profile.firstLanguage),
-        profileText: response.profile.profileText || '',
-        gender: getGenderJapanese(response.profile.gender),
-        ageGroup: getAgeGroupJapanese(response.profile.ageGroup),
-        iconUrl: response.profile.iconUrl || '',
+        signLanguageLevel: profile.signLanguageLevel || '',
+        firstLanguage: profile.firstLanguage || '',
+        profileText: profile.profileText || '',
+        gender: profile.gender || '',
+        ageGroup: profile.ageGroup || '',
+        iconUrl: profile.iconUrl || '',
       });
     } catch (error) {
       console.error('Failed to load profile:', error);
@@ -55,12 +79,29 @@ const ProfilePage: React.FC = () => {
     setSaving(true);
 
     try {
-      const response = await profileApi.updateProfile(formData);
+      if (!currentUser) {
+        setError('ユーザーが認証されていません');
+        return;
+      }
+
+      // Firebase移行後は直接 usersFirestoreApi.updateProfile を使用
+      const { usersFirestoreApi } = await import('../services/firestore');
+      const response = await usersFirestoreApi.updateProfile(currentUser.uid, formData);
       setProfile(response.profile);
       setSuccess('プロフィールを更新しました！');
+      
+      // プロフィール更新後、フォームデータも更新
+      setFormData({
+        signLanguageLevel: response.profile.signLanguageLevel || '',
+        firstLanguage: response.profile.firstLanguage || '',
+        profileText: response.profile.profileText || '',
+        gender: response.profile.gender || '',
+        ageGroup: response.profile.ageGroup || '',
+        iconUrl: response.profile.iconUrl || '',
+      });
     } catch (error: any) {
       console.error('Failed to update profile:', error);
-      setError(error.response?.data?.message || 'プロフィールの更新に失敗しました');
+      setError(error.message || 'プロフィールの更新に失敗しました');
     } finally {
       setSaving(false);
     }
@@ -70,45 +111,7 @@ const ProfilePage: React.FC = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // Helper functions for display
-  const getSignLanguageLevelJapanese = (level?: string) => {
-    switch (level) {
-      case 'BEGINNER': return '初級';
-      case 'INTERMEDIATE': return '中級';
-      case 'ADVANCED': return '上級';
-      default: return '';
-    }
-  };
-
-  const getFirstLanguageJapanese = (language?: string) => {
-    switch (language) {
-      case 'SPOKEN': return '音声言語';
-      case 'SIGN': return '手話';
-      default: return '';
-    }
-  };
-
-  const getGenderJapanese = (gender?: string) => {
-    switch (gender) {
-      case 'MALE': return '男性';
-      case 'FEMALE': return '女性';
-      case 'OTHER': return 'その他';
-      case 'UNSPECIFIED': return '未回答';
-      default: return '';
-    }
-  };
-
-  const getAgeGroupJapanese = (ageGroup?: string) => {
-    switch (ageGroup) {
-      case 'TEENS': return '10代';
-      case 'TWENTIES': return '20代';
-      case 'THIRTIES': return '30代';
-      case 'FORTIES': return '40代';
-      case 'FIFTIES': return '50代';
-      case 'SIXTIES_PLUS': return '60代以上';
-      default: return '';
-    }
-  };
+  // Helper functions for display (Firestore から取得した値は既に日本語のため不要)
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -119,12 +122,23 @@ const ProfilePage: React.FC = () => {
     });
   };
 
-  if (!currentUser) {
-    return <div>ログインが必要です</div>;
+  if (authLoading) {
+    return <div className="loading">認証状態を確認中...</div>;
   }
 
   if (loading) {
     return <div className="loading">読み込み中...</div>;
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="error-page">
+        <div className="error-message">ログインが必要です</div>
+        <button onClick={() => window.location.href = '/shuwashuwa/auth'} className="back-button">
+          ログインページに移動
+        </button>
+      </div>
+    );
   }
 
   if (!profile) {

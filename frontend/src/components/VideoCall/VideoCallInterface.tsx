@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { videoCallApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { WebRTCService } from '../../services/webrtc';
 import type { VideoCallSession } from '../../types/api';
 
 interface VideoCallInterfaceProps {
-  chatRoomId: number;
+  chatRoomId: string;
   onCallEnd?: () => void;
 }
 
@@ -17,6 +17,7 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const webrtcServiceRef = useRef<WebRTCService | null>(null);
 
   useEffect(() => {
     checkActiveSession();
@@ -41,34 +42,42 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
   }, [remoteStream]);
 
   const checkActiveSession = async () => {
-    try {
-      const response = await videoCallApi.getActiveSession(chatRoomId);
-      if (response.session) {
-        setSession(response.session);
-        setIsInCall(true);
-      }
-    } catch (error) {
-      console.error('Failed to check active session:', error);
-    }
+    // Firebase Realtime Databaseでアクティブセッションをチェック
+    // 現在は簡易実装として、常に新しいセッションを作成
+    console.log('Checking active session for room:', chatRoomId);
   };
 
   const startCall = async () => {
     setLoading(true);
     try {
-      // Get user media first
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
-      setLocalStream(stream);
+      if (!user?.uid) {
+        throw new Error('ユーザーが認証されていません');
+      }
 
-      // Start session
-      const response = await videoCallApi.startSession(chatRoomId);
-      setSession(response.session);
+      // WebRTC サービス初期化
+      webrtcServiceRef.current = new WebRTCService(user.uid, chatRoomId);
+      
+      // 通話開始
+      const session = await webrtcServiceRef.current.startCall();
+      setSession(session);
       setIsInCall(true);
 
-      // In a real implementation, you would set up WebRTC peer connection here
-      // For now, we'll simulate a simple video call interface
+      // ローカルストリーム取得
+      const localStream = webrtcServiceRef.current.getLocalStream();
+      if (localStream) {
+        setLocalStream(localStream);
+      }
+
+      // リモートストリーム監視
+      const checkRemoteStream = () => {
+        const remoteStream = webrtcServiceRef.current?.getRemoteStream();
+        if (remoteStream) {
+          setRemoteStream(remoteStream);
+        } else {
+          setTimeout(checkRemoteStream, 1000);
+        }
+      };
+      checkRemoteStream();
       
     } catch (error) {
       console.error('Failed to start call:', error);
@@ -79,20 +88,27 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
   };
 
   const endCall = async () => {
-    if (!session) return;
+    if (!session || !webrtcServiceRef.current) return;
 
     try {
-      await videoCallApi.endSession(session.id);
+      // WebRTC サービスで通話終了
+      await webrtcServiceRef.current.endCall();
       
-      // Stop local stream
+      // ローカルストリーム停止
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
         setLocalStream(null);
       }
       
+      // 状態リセット
       setSession(null);
       setIsInCall(false);
       setRemoteStream(null);
+      
+      // サービスクリーンアップ
+      webrtcServiceRef.current.cleanup();
+      webrtcServiceRef.current = null;
+      
       onCallEnd?.();
     } catch (error) {
       console.error('Failed to end call:', error);

@@ -3,7 +3,7 @@ import type { ChatMessage } from '../../types/api';
 
 interface MessageListProps {
   messages: ChatMessage[];
-  currentUserId: number;
+  currentUserId: string;
 }
 
 const MessageList: React.FC<MessageListProps> = ({ messages, currentUserId }) => {

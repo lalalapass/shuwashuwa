@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { videoCallApi } from '../../services/api';
+import { videoCallScheduleFirestoreApi } from '../../services/firestore';
 import { useAuth } from '../../context/AuthContext';
 import type { VideoCallSchedule } from '../../types/api';
 
 interface ScheduleManagerProps {
-  chatRoomId: number;
+  chatRoomId: string;
   onScheduleUpdate?: () => void;
 }
 
@@ -25,7 +25,7 @@ const ScheduleManager: React.FC<ScheduleManagerProps> = ({ chatRoomId, onSchedul
 
   const loadSchedules = async () => {
     try {
-      const response = await videoCallApi.getSchedules(chatRoomId);
+      const response = await videoCallScheduleFirestoreApi.getSchedules(chatRoomId);
       setSchedules(response.schedules);
     } catch (error) {
       console.error('Failed to load schedules:', error);
@@ -34,12 +34,13 @@ const ScheduleManager: React.FC<ScheduleManagerProps> = ({ chatRoomId, onSchedul
 
   const handleCreateSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.proposedAt) return;
+    if (!formData.title || !formData.proposedAt || !user) return;
 
     setLoading(true);
     try {
-      await videoCallApi.createSchedule({
+      await videoCallScheduleFirestoreApi.createSchedule({
         chatRoomId,
+        proposerId: user.uid,
         title: formData.title,
         description: formData.description || undefined,
         proposedAt: formData.proposedAt,
@@ -57,9 +58,9 @@ const ScheduleManager: React.FC<ScheduleManagerProps> = ({ chatRoomId, onSchedul
     }
   };
 
-  const handleRespondToSchedule = async (scheduleId: number, action: 'accept' | 'reject') => {
+  const handleRespondToSchedule = async (scheduleId: string, action: 'accept' | 'reject') => {
     try {
-      await videoCallApi.respondToSchedule(scheduleId, action);
+      await videoCallScheduleFirestoreApi.respondToSchedule(scheduleId, action);
       await loadSchedules();
       onScheduleUpdate?.();
     } catch (error) {
@@ -180,7 +181,7 @@ const ScheduleManager: React.FC<ScheduleManagerProps> = ({ chatRoomId, onSchedul
                   <p className="schedule-description">{schedule.description}</p>
                 )}
               </div>
-              {schedule.status === 'pending' && schedule.proposerId !== user?.id && (
+              {schedule.status === 'pending' && schedule.proposerId !== user?.uid && (
                 <div className="schedule-actions">
                   <button
                     onClick={() => handleRespondToSchedule(schedule.id, 'accept')}

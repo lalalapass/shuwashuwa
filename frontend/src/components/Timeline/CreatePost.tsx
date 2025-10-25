@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { postsApi } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import type { Post } from '../../types/api';
 
 interface CreatePostProps {
@@ -10,19 +11,33 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
   const [contentText, setContentText] = useState('');
   const [contentVideoUrl, setContentVideoUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { user } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contentText.trim() && !contentVideoUrl.trim()) return;
+    if (!user) {
+      alert('ログインが必要です');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      const response = await postsApi.createPost({
-        contentText: contentText.trim() || undefined,
-        contentVideoUrl: contentVideoUrl.trim() || undefined,
+      // 直接 postsFirestoreApi.createPost を使用
+      const { postsFirestoreApi } = await import('../../services/firestore');
+      const response = await postsFirestoreApi.createPost({
+        userId: user.uid,
+        contentText: contentText.trim() || '',
+        contentVideoUrl: contentVideoUrl.trim() || '',
       });
       
-      onPostCreated(response.post);
+      // ユーザー名を追加
+      const postWithUsername = {
+        ...response.post,
+        username: user.username || 'Unknown User'
+      };
+      
+      onPostCreated(postWithUsername);
       setContentText('');
       setContentVideoUrl('');
     } catch (error) {

@@ -11,8 +11,8 @@ export interface User {
 }
 
 export interface Post {
-  id: number;
-  userId: number;
+  id: string;
+  userId: string;
   username: string;
   contentText?: string;
   contentVideoUrl?: string;
@@ -21,28 +21,30 @@ export interface Post {
 }
 
 export interface FriendRequest {
-  id: number;
-  senderId: number;
+  id: string;
+  senderId: string;
   senderUsername: string;
-  receiverId: number;
+  receiverId: string;
   message?: string;
   status: 'pending' | 'accepted' | 'rejected';
   createdAt: string;
 }
 
 export interface ChatRoom {
-  id: number;
-  otherUserId: number;
-  otherUsername: string;
+  id: string;
+  user1Id: string;
+  user2Id: string;
+  otherUsername?: string;
   lastMessage?: string;
-  lastMessageAt: string;
-  createdAt: string;
+  lastMessageAt?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface ChatMessage {
-  id: number;
-  chatRoomId: number;
-  senderId: number;
+  id: string;
+  chatRoomId: string;
+  senderId: string;
   senderUsername: string;
   messageText?: string;
   videoUrl?: string;
@@ -69,25 +71,24 @@ export interface Profile {
 }
 
 export interface VideoCallSchedule {
-  id: number;
-  chatRoomId: number;
-  proposerId: number;
+  id: string;
+  chatRoomId: string;
+  proposerId: string;
   proposerUsername: string;
   title: string;
   description?: string;
   proposedAt: string;
   status: 'pending' | 'accepted' | 'rejected';
-  createdAt: string;
 }
 
 export interface VideoCallSession {
-  id: number;
-  chatRoomId: number;
-  starterId: number;
+  id: string;
+  chatRoomId: string;
+  starterId: string;
   roomId: string;
   isActive: boolean;
-  startedAt: string;
-  endedAt?: string;
+  startedAt: Date;
+  endedAt?: Date;
 }
 
 export interface ApiResponse<T> {

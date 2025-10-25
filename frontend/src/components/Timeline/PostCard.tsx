@@ -1,24 +1,47 @@
 import React, { useState } from 'react';
-import { postsApi } from '../../services/api';
+import { postsFirestoreApi } from '../../services/firestore';
+import { useAuth } from '../../context/AuthContext';
 import type { Post } from '../../types/api';
 
 interface PostCardProps {
   post: Post;
-  onLikeUpdate: (postId: number, liked: boolean) => void;
+  onLikeUpdate: (postId: string, liked: boolean) => void;
 }
 
 const PostCard: React.FC<PostCardProps> = ({ post, onLikeUpdate }) => {
   const [isLiking, setIsLiking] = useState(false);
+  const { user, loading } = useAuth();
 
   const handleLike = async () => {
     if (isLiking) return;
+    
+    if (loading) {
+      return;
+    }
+    
+    if (!user) {
+      alert('ログインが必要です');
+      return;
+    }
+    
+    if (!user.uid) {
+      alert('ユーザーIDが取得できません');
+      return;
+    }
+    
     setIsLiking(true);
 
     try {
-      const response = await postsApi.likePost(post.id);
+      console.log('Attempting to like post:', post.id, 'by user:', user.uid);
+      console.log('Like ID will be:', `${post.id}_${user.uid}`);
+      // 直接 postsFirestoreApi.toggleLike を使用
+      const { postsFirestoreApi } = await import('../../services/firestore');
+      const response = await postsFirestoreApi.toggleLike(post.id, user.uid);
+      console.log('Like response:', response);
       onLikeUpdate(post.id, response.liked);
     } catch (error) {
       console.error('Failed to like post:', error);
+      console.error('Error details:', error.message);
     } finally {
       setIsLiking(false);
     }
@@ -39,14 +62,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLikeUpdate }) => {
     <div className="post-card">
       <div className="post-header">
         <div className="user-info">
-          <strong>{post.username}</strong>
+          <strong>{post.username || 'Unknown User'}</strong>
           <span className="post-date">{formatDate(post.createdAt)}</span>
         </div>
       </div>
       <div className="post-content">
         <div className="user-avatar">
           <div className="avatar-circle">
-            {post.username.charAt(0).toUpperCase()}
+            {post.username ? post.username.charAt(0).toUpperCase() : 'U'}
           </div>
         </div>
         <div className="speech-bubble">
@@ -65,7 +88,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLikeUpdate }) => {
             disabled={isLiking}
           >
             <span className="bubble-icon">💙</span>
-            <span className="like-count">{post.likeCount}</span>
+            <span className="like-count">{post.likeCount || 0}</span>
           </button>
         </div>
       </div>

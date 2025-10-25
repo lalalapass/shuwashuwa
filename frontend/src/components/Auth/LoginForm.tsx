@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { authApi } from '../../services/api';
 
 interface LoginFormProps {
   onSwitchToRegister: () => void;
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,14 +18,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
     setLoading(true);
 
     try {
-      const response = await authApi.login({ username, password });
-      if (response.token && response.user) {
-        login(response.token, response.user);
-      } else {
-        setError('ログインレスポンスが不正です');
-      }
+      await login(email, password);
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'ログインに失敗しました');
+      setError(err.message || 'ログインに失敗しました');
     } finally {
       setLoading(false);
     }
@@ -37,12 +31,12 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToRegister }) => {
       <h2>ログイン</h2>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="username">ユーザー名</label>
+          <label htmlFor="email">メールアドレス</label>
           <input
-            type="text"
-            id="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            type="email"
+            id="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
           />
         </div>

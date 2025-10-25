@@ -27,7 +27,7 @@ const TimelinePage: React.FC = () => {
     setPosts([newPost, ...posts]);
   };
 
-  const handleLikeUpdate = (postId: number, liked: boolean) => {
+  const handleLikeUpdate = (postId: string, liked: boolean) => {
     setPosts(posts.map(post => 
       post.id === postId 
         ? { ...post, likeCount: post.likeCount + (liked ? 1 : -1) }

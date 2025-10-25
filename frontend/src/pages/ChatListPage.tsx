@@ -18,7 +18,14 @@ const ChatListPage: React.FC = () => {
   const loadRooms = async () => {
     setLoading(true);
     try {
-      const response = await chatApi.getRooms();
+      if (!currentUser) {
+        console.error('User not authenticated');
+        return;
+      }
+      
+      // 直接 chatFirestoreApi.getRooms を使用
+      const { chatFirestoreApi } = await import('../services/firestore');
+      const response = await chatFirestoreApi.getRooms(currentUser.uid);
       setRooms(response.rooms || []);
     } catch (error) {
       console.error('Failed to load chat rooms:', error);
@@ -27,7 +34,7 @@ const ChatListPage: React.FC = () => {
     }
   };
 
-  const handleRoomSelect = (roomId: number) => {
+  const handleRoomSelect = (roomId: string) => {
     navigate(`/chat/${roomId}`);
   };
 

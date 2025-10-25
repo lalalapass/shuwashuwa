@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { friendRequestsApi } from '../../services/api';
+import { friendRequestsFirestoreApi } from '../../services/firestore';
+import { useAuth } from '../../context/AuthContext';
 import type { User } from '../../types/api';
 
 interface UserCardProps {
@@ -13,13 +14,21 @@ const UserCard: React.FC<UserCardProps> = ({ user, currentUserId }) => {
   const [isSending, setIsSending] = useState(false);
   const [message, setMessage] = useState('');
   const [showMessageForm, setShowMessageForm] = useState(false);
+  const { user: currentUser } = useAuth();
 
   const handleSendRequest = async () => {
     if (isSending) return;
+    
+    if (!currentUser) {
+      alert('ログインが必要です');
+      return;
+    }
+    
     setIsSending(true);
 
     try {
-      await friendRequestsApi.sendRequest({
+      await friendRequestsFirestoreApi.sendRequest({
+        senderId: currentUser.uid,
         receiverId: user.id,
         message: message.trim() || undefined,
       });

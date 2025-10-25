@@ -38,8 +38,8 @@ export class WebRTCService {
         audio: true,
       });
 
-      // 通話ID生成
-      this.callId = `call_${Date.now()}_${this.userId}`;
+      // 通話ID生成（チャットルームベース）
+      this.callId = `call_${this.chatRoomId}`;
       
       // セッション作成
       const sessionData = {
@@ -61,6 +61,13 @@ export class WebRTCService {
       // WebRTC ピアコネクション設定
       await this.setupPeerConnection();
 
+      // 通話開始を通知
+      await set(ref(this.db, `calls/${this.callId}/status`), {
+        started: true,
+        starterId: this.userId,
+        timestamp: serverTimestamp(),
+      });
+
       return {
         id: sessionRef.key!,
         chatRoomId: this.chatRoomId,
@@ -72,6 +79,36 @@ export class WebRTCService {
       };
     } catch (error) {
       console.error('Failed to start call:', error);
+      throw error;
+    }
+  }
+
+  // 通話参加
+  async joinCall(): Promise<void> {
+    try {
+      // メディアストリーム取得
+      this.localStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+
+      // 通話ID設定（チャットルームベース）
+      this.callId = `call_${this.chatRoomId}`;
+
+      // シグナリング用のRealtime Database参照
+      this.signalingRef = ref(this.db, `calls/${this.callId}/signaling`);
+      
+      // WebRTC ピアコネクション設定
+      await this.setupPeerConnection();
+
+      // 参加を通知
+      await set(ref(this.db, `calls/${this.callId}/participants/${this.userId}`), {
+        joined: true,
+        timestamp: serverTimestamp(),
+      });
+
+    } catch (error) {
+      console.error('Failed to join call:', error);
       throw error;
     }
   }
@@ -160,8 +197,11 @@ export class WebRTCService {
     if (!this.peerConnection) return;
 
     try {
+      console.log('Handling signaling data:', data);
+
       // オファー処理
       if (data.offer && data.offer.from !== this.userId) {
+        console.log('Processing offer from:', data.offer.from);
         await this.peerConnection.setRemoteDescription(data.offer);
         const answer = await this.peerConnection.createAnswer();
         await this.peerConnection.setLocalDescription(answer);
@@ -171,17 +211,21 @@ export class WebRTCService {
           from: this.userId,
           timestamp: serverTimestamp(),
         });
+        console.log('Answer sent');
       }
 
       // アンサー処理
       if (data.answer && data.answer.from !== this.userId) {
+        console.log('Processing answer from:', data.answer.from);
         await this.peerConnection.setRemoteDescription(data.answer);
+        console.log('Answer processed');
       }
 
       // ICE候補処理
       if (data.iceCandidates) {
         for (const [userId, candidateData] of Object.entries(data.iceCandidates)) {
           if (userId !== this.userId && candidateData) {
+            console.log('Adding ICE candidate from:', userId);
             await this.peerConnection.addIceCandidate((candidateData as any).candidate);
           }
         }

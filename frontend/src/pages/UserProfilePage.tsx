@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { friendRequestsFirestoreApi } from '../services/firestore';
+import { friendRequestsFirestoreApi, usersFirestoreApi } from '../services/firestore';
 import { useAuth } from '../context/AuthContext';
 import type { Profile } from '../types/api';
 
@@ -19,34 +19,37 @@ const UserProfilePage: React.FC = () => {
   useEffect(() => {
     if (!userId || !currentUser) return;
     
-    const userIdNum = Number(userId);
-    if (isNaN(userIdNum)) {
-      setError('無効なユーザーIDです');
-      setLoading(false);
-      return;
-    }
-
     // Redirect to own profile page if viewing own profile
-    if (userIdNum === currentUser.id) {
+    if (userId === currentUser.uid) {
       navigate('/profile');
       return;
     }
 
-    loadProfile(userIdNum);
+    loadProfile(userId);
   }, [userId, currentUser, navigate]);
 
-  const loadProfile = async (userIdNum: number) => {
+  const loadProfile = async (userIdStr: string) => {
     setLoading(true);
     try {
-      const response = await profileApi.getUserProfile(userIdNum);
-      setProfile(response.profile);
-    } catch (error: any) {
+      const response = await usersFirestoreApi.getUser(userIdStr);
+      const user = response.user;
+      const profile: Profile = {
+        id: user.id,
+        userId: user.uid,
+        username: user.username,
+        signLanguageLevel: user.signLanguageLevel,
+        firstLanguage: user.firstLanguage,
+        profileText: user.profileText,
+        gender: user.gender,
+        ageGroup: user.ageGroup,
+        iconUrl: user.iconUrl,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      };
+      setProfile(profile);
+    } catch (error: unknown) {
       console.error('Failed to load user profile:', error);
-      if (error.response?.status === 404) {
-        setError('ユーザーが見つかりません');
-      } else {
-        setError('プロフィールの読み込みに失敗しました');
-      }
+      setError('プロフィールの読み込みに失敗しました');
     } finally {
       setLoading(false);
     }
@@ -64,13 +67,9 @@ const UserProfilePage: React.FC = () => {
       setIsRequestSent(true);
       setShowMessageForm(false);
       setMessage('');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to send friend request:', error);
-      if (error.response?.status === 409) {
-        alert('既にリクエストを送信済みです');
-      } else {
-        alert('リクエストの送信に失敗しました');
-      }
+      alert('リクエストの送信に失敗しました');
     } finally {
       setIsSending(false);
     }

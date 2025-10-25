@@ -16,7 +16,7 @@ import {
   Unsubscribe
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import type { User, Post, FriendRequest, ChatRoom, ChatMessage, Profile } from '../types/api';
+import type { User, Post, FriendRequest, ChatRoom, ChatMessage, Profile, VideoCallSchedule } from '../types/api';
 
 // Users API
 export const usersFirestoreApi = {
@@ -607,7 +607,7 @@ export const videoCallScheduleFirestoreApi = {
       id: docRef.id,
       chatRoomId: data.chatRoomId,
       proposerId: data.proposerId,
-      proposerUsername: '', // 後で取得
+      proposerUsername: data.proposerUsername || 'Unknown User',
       title: data.title,
       description: data.description,
       proposedAt: data.proposedAt,
@@ -649,7 +649,7 @@ export const videoCallScheduleFirestoreApi = {
         proposerUsername: proposerUsername,
         title: data.title,
         description: data.description,
-        proposedAt: data.proposedAt?.toDate().toISOString(),
+        proposedAt: data.proposedAt?.toDate()?.toISOString() || new Date().toISOString(),
         status: data.status,
       });
     }

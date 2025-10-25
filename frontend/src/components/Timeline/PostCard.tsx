@@ -32,16 +32,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLikeUpdate }) => {
     setIsLiking(true);
 
     try {
-      console.log('Attempting to like post:', post.id, 'by user:', user.uid);
-      console.log('Like ID will be:', `${post.id}_${user.uid}`);
-      // 直接 postsFirestoreApi.toggleLike を使用
-      const { postsFirestoreApi } = await import('../../services/firestore');
       const response = await postsFirestoreApi.toggleLike(post.id, user.uid);
-      console.log('Like response:', response);
       onLikeUpdate(post.id, response.liked);
     } catch (error) {
       console.error('Failed to like post:', error);
-      console.error('Error details:', error.message);
     } finally {
       setIsLiking(false);
     }

@@ -1,13 +1,15 @@
 export interface User {
-  id: number;
+  id: string;
+  uid: string;
   username: string;
-  signLanguageLevel: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
-  firstLanguage: 'SPOKEN' | 'SIGN';
+  signLanguageLevel: string;
+  firstLanguage: string;
   profileText?: string;
-  gender?: 'MALE' | 'FEMALE' | 'OTHER' | 'UNSPECIFIED';
-  ageGroup?: 'TEENS' | 'TWENTIES' | 'THIRTIES' | 'FORTIES' | 'FIFTIES' | 'SIXTIES_PLUS';
+  gender?: string;
+  ageGroup?: string;
   iconUrl?: string;
-  createdAt: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface Post {
@@ -16,7 +18,8 @@ export interface Post {
   username: string;
   contentText?: string;
   contentVideoUrl?: string;
-  createdAt: string;
+  createdAt?: Date;
+  updatedAt?: Date;
   likeCount: number;
 }
 
@@ -27,7 +30,8 @@ export interface FriendRequest {
   receiverId: string;
   message?: string;
   status: 'pending' | 'accepted' | 'rejected';
-  createdAt: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface ChatRoom {
@@ -48,7 +52,7 @@ export interface ChatMessage {
   senderUsername: string;
   messageText?: string;
   videoUrl?: string;
-  createdAt: string;
+  createdAt?: Date;
 }
 
 export interface AuthResponse {
@@ -57,15 +61,17 @@ export interface AuthResponse {
 }
 
 export interface Profile {
-  id: number;
+  id: string;
+  userId: string;
   username: string;
-  signLanguageLevel: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
-  firstLanguage: 'SPOKEN' | 'SIGN';
+  signLanguageLevel: string;
+  firstLanguage: string;
   profileText?: string;
-  gender?: 'MALE' | 'FEMALE' | 'OTHER' | 'UNSPECIFIED';
-  ageGroup?: 'TEENS' | 'TWENTIES' | 'THIRTIES' | 'FORTIES' | 'FIFTIES' | 'SIXTIES_PLUS';
+  gender?: string;
+  ageGroup?: string;
   iconUrl?: string;
-  createdAt: string;
+  createdAt?: Date;
+  updatedAt?: Date;
   postCount?: number;
   friendCount?: number;
 }

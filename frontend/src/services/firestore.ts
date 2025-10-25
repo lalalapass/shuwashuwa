@@ -60,8 +60,8 @@ export const usersFirestoreApi = {
         gender: data.gender,
         ageGroup: data.ageGroup,
         iconUrl: data.iconUrl,
-        createdAt: data.createdAt?.toDate(),
-        updatedAt: data.updatedAt?.toDate(),
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
       });
     });
     
@@ -86,8 +86,8 @@ export const usersFirestoreApi = {
       gender: data.gender,
       ageGroup: data.ageGroup,
       iconUrl: data.iconUrl,
-      createdAt: data.createdAt?.toDate(),
-      updatedAt: data.updatedAt?.toDate(),
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || new Date(),
     };
     
     return { user };
@@ -165,8 +165,8 @@ export const postsFirestoreApi = {
         contentText: data.contentText,
         contentVideoUrl: data.contentVideoUrl,
         likeCount: data.likesCount || 0,
-        createdAt: data.createdAt?.toDate(),
-        updatedAt: data.updatedAt?.toDate(),
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
       });
     }
     
@@ -266,9 +266,22 @@ export const friendRequestsFirestoreApi = {
     };
     
     const docRef = await addDoc(collection(db, 'friendRequests'), requestData);
+    
+    // 送信者のユーザー名を取得
+    let senderUsername = 'Unknown User';
+    try {
+      const senderDoc = await getDoc(doc(db, 'users', data.senderId));
+      if (senderDoc.exists()) {
+        senderUsername = senderDoc.data().username || 'Unknown User';
+      }
+    } catch (error) {
+      console.error('Failed to get sender info:', error);
+    }
+    
     const request: FriendRequest = {
       id: docRef.id,
       senderId: data.senderId,
+      senderUsername: senderUsername,
       receiverId: data.receiverId,
       message: data.message || '',
       status: 'pending',
@@ -312,8 +325,8 @@ export const friendRequestsFirestoreApi = {
         senderUsername: senderUsername,
         message: data.message,
         status: data.status,
-        createdAt: data.createdAt?.toDate(),
-        updatedAt: data.updatedAt?.toDate(),
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
       });
     }
     
@@ -424,8 +437,8 @@ export const chatFirestoreApi = {
           user1Id: data.user1Id,
           user2Id: data.user2Id,
           otherUsername: otherUsername,
-          createdAt: data.createdAt?.toDate(),
-          updatedAt: data.updatedAt?.toDate(),
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
         });
       }
     }
@@ -453,8 +466,8 @@ export const chatFirestoreApi = {
           user1Id: data.user1Id,
           user2Id: data.user2Id,
           otherUsername: otherUsername,
-          createdAt: data.createdAt?.toDate(),
-          updatedAt: data.updatedAt?.toDate(),
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
         });
       }
     }
@@ -488,10 +501,23 @@ export const chatFirestoreApi = {
     }
     
     const docRef = await addDoc(collection(db, 'chatRooms', roomId, 'messages'), messageData);
+    
+    // 送信者のユーザー名を取得
+    let senderUsername = 'Unknown User';
+    try {
+      const senderDoc = await getDoc(doc(db, 'users', data.senderId));
+      if (senderDoc.exists()) {
+        senderUsername = senderDoc.data().username || 'Unknown User';
+      }
+    } catch (error) {
+      console.error('Failed to get sender info:', error);
+    }
+    
     const message: ChatMessage = {
       id: docRef.id,
       chatRoomId: roomId,
       senderId: data.senderId,
+      senderUsername: senderUsername,
       messageText: data.messageText,
       videoUrl: data.videoUrl,
       createdAt: new Date(),
@@ -531,7 +557,7 @@ export const chatFirestoreApi = {
         senderUsername: senderUsername,
         messageText: data.messageText,
         videoUrl: data.videoUrl,
-        createdAt: data.createdAt?.toDate(),
+        createdAt: data.createdAt?.toDate() || new Date(),
       });
     }
     
@@ -569,7 +595,7 @@ export const chatFirestoreApi = {
           senderUsername: senderUsername,
           messageText: data.messageText,
           videoUrl: data.videoUrl,
-          createdAt: data.createdAt?.toDate(),
+          createdAt: data.createdAt?.toDate() || new Date(),
         });
       }
       

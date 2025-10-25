@@ -66,7 +66,7 @@ const UsersPage: React.FC = () => {
                   <UserCard
                     key={user.id}
                     user={user}
-                    currentUserId={currentUser.id}
+                    currentUserId={currentUser.uid}
                   />
                 ))}
               </div>

@@ -34,7 +34,7 @@ const UserProfilePage: React.FC = () => {
       const response = await usersFirestoreApi.getUser(userIdStr);
       const user = response.user;
       const profile: Profile = {
-        id: user.id,
+        id: user.uid,
         userId: user.uid,
         username: user.username,
         signLanguageLevel: user.signLanguageLevel,
@@ -60,7 +60,8 @@ const UserProfilePage: React.FC = () => {
     setIsSending(true);
 
     try {
-      await friendRequestsApi.sendRequest({
+      await friendRequestsFirestoreApi.sendRequest({
+        senderId: currentUser.uid,
         receiverId: profile.id,
         message: message.trim() || undefined,
       });

@@ -209,6 +209,14 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
     // 通話が開始されているかチェック
     const hasActiveCall = session && session.starterId !== user?.uid;
     
+    // デバッグ用ログ（一時的）
+    console.log('VideoCall Debug:', {
+      session,
+      hasActiveCall,
+      userId: user?.uid,
+      starterId: session?.starterId
+    });
+    
     return (
       <div className="video-call-start">
         <div className="call-info">
@@ -221,6 +229,12 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
           <p className="call-note">
             ⚠️ 通話を開始する前に、カメラとマイクへのアクセスを許可してください。
           </p>
+          {/* デバッグ情報（一時的） */}
+          <div style={{fontSize: '12px', color: '#666', marginTop: '10px'}}>
+            Debug: hasActiveCall={hasActiveCall ? 'true' : 'false'}, 
+            session={session ? 'exists' : 'null'}, 
+            userId={user?.uid || 'null'}
+          </div>
         </div>
         <div className="call-buttons">
           {!hasActiveCall && (

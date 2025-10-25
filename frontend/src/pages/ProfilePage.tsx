@@ -163,7 +163,7 @@ const ProfilePage: React.FC = () => {
             </div>
             <div className="profile-basic">
               <h3>{profile.username}</h3>
-              <p className="join-date">参加日: {formatDate(profile.createdAt)}</p>
+              <p className="join-date">参加日: {formatDate(profile.createdAt?.toISOString() || new Date().toISOString())}</p>
             </div>
           </div>
         </div>

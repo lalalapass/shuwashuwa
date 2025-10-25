@@ -85,6 +85,8 @@ export interface VideoCallSchedule {
   description?: string;
   proposedAt: string;
   status: 'pending' | 'accepted' | 'rejected';
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface VideoCallSession {

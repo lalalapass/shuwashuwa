@@ -68,7 +68,7 @@ export class WebRTCService {
         roomId: this.callId,
         isActive: true,
         startedAt: new Date(),
-        endedAt: null,
+        endedAt: undefined,
       };
     } catch (error) {
       console.error('Failed to start call:', error);
@@ -182,7 +182,7 @@ export class WebRTCService {
       if (data.iceCandidates) {
         for (const [userId, candidateData] of Object.entries(data.iceCandidates)) {
           if (userId !== this.userId && candidateData) {
-            await this.peerConnection.addIceCandidate(candidateData.candidate);
+            await this.peerConnection.addIceCandidate((candidateData as any).candidate);
           }
         }
       }
@@ -245,13 +245,15 @@ export const videoCallScheduleApi = {
   // スケジュール作成
   createSchedule: async (data: {
     chatRoomId: string;
+    proposerId: string;
     title: string;
     description?: string;
     proposedAt: string;
   }): Promise<{ schedule: VideoCallSchedule }> => {
+    const db = getDatabase();
     const scheduleData = {
       chatRoomId: data.chatRoomId,
-      proposerId: '', // 現在のユーザーID
+      proposerId: data.proposerId,
       title: data.title,
       description: data.description || '',
       proposedAt: data.proposedAt,
@@ -266,7 +268,8 @@ export const videoCallScheduleApi = {
     const schedule: VideoCallSchedule = {
       id: scheduleRef.key!,
       chatRoomId: data.chatRoomId,
-      proposerId: '', // 現在のユーザーID
+      proposerId: data.proposerId,
+      proposerUsername: 'Unknown User', // 後で取得
       title: data.title,
       description: data.description || '',
       proposedAt: data.proposedAt,
@@ -280,6 +283,7 @@ export const videoCallScheduleApi = {
 
   // スケジュール一覧取得
   getSchedules: async (chatRoomId: string): Promise<{ schedules: VideoCallSchedule[] }> => {
+    const db = getDatabase();
     const schedulesRef = ref(db, 'videoCallSchedules');
     const snapshot = await get(schedulesRef);
     
@@ -292,12 +296,13 @@ export const videoCallScheduleApi = {
             id,
             chatRoomId: (schedule as any).chatRoomId,
             proposerId: (schedule as any).proposerId,
+            proposerUsername: 'Unknown User', // 後で取得
             title: (schedule as any).title,
             description: (schedule as any).description,
             proposedAt: (schedule as any).proposedAt,
             status: (schedule as any).status,
-            createdAt: (schedule as any).createdAt?.toDate(),
-            updatedAt: (schedule as any).updatedAt?.toDate(),
+            createdAt: (schedule as any).createdAt?.toDate() || new Date(),
+            updatedAt: (schedule as any).updatedAt?.toDate() || new Date(),
           });
         }
       }
@@ -308,6 +313,7 @@ export const videoCallScheduleApi = {
 
   // スケジュール回答
   respondToSchedule: async (scheduleId: string, action: 'accept' | 'reject'): Promise<void> => {
+    const db = getDatabase();
     const scheduleRef = ref(db, `videoCallSchedules/${scheduleId}`);
     await set(scheduleRef, {
       status: action === 'accept' ? 'accepted' : 'rejected',

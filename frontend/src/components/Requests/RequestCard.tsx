@@ -41,7 +41,7 @@ const RequestCard: React.FC<RequestCardProps> = ({ request, onRequestHandled }) 
       <div className="request-header">
         <div className="sender-info">
           <strong>{request.senderUsername}</strong>
-          <span className="request-date">{formatDate(request.createdAt)}</span>
+          <span className="request-date">{formatDate(request.createdAt?.toISOString() || new Date().toISOString())}</span>
         </div>
       </div>
       

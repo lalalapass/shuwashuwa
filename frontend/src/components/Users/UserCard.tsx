@@ -6,7 +6,7 @@ import type { User } from '../../types/api';
 
 interface UserCardProps {
   user: User;
-  currentUserId: number;
+  currentUserId: string;
 }
 
 const UserCard: React.FC<UserCardProps> = ({ user, currentUserId }) => {
@@ -84,7 +84,7 @@ const UserCard: React.FC<UserCardProps> = ({ user, currentUserId }) => {
     }
   };
 
-  if (user.id === currentUserId) {
+  if (user.uid === currentUserId) {
     return null; // Don't show current user
   }
 

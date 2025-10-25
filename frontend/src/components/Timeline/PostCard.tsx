@@ -57,7 +57,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLikeUpdate }) => {
       <div className="post-header">
         <div className="user-info">
           <strong>{post.username || 'Unknown User'}</strong>
-          <span className="post-date">{formatDate(post.createdAt)}</span>
+          <span className="post-date">{formatDate(post.createdAt?.toISOString() || new Date().toISOString())}</span>
         </div>
       </div>
       <div className="post-content">

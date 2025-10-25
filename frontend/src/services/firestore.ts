@@ -633,7 +633,7 @@ export const videoCallScheduleFirestoreApi = {
       id: docRef.id,
       chatRoomId: data.chatRoomId,
       proposerId: data.proposerId,
-      proposerUsername: data.proposerUsername || 'Unknown User',
+      proposerUsername: 'Unknown User', // 後で取得
       title: data.title,
       description: data.description,
       proposedAt: data.proposedAt,

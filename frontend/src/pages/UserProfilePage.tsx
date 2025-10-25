@@ -61,7 +61,7 @@ const UserProfilePage: React.FC = () => {
 
     try {
       await friendRequestsFirestoreApi.sendRequest({
-        senderId: currentUser.uid,
+        senderId: currentUser?.uid || '',
         receiverId: profile.id,
         message: message.trim() || undefined,
       });
@@ -168,7 +168,7 @@ const UserProfilePage: React.FC = () => {
             </div>
             <div className="profile-info">
               <h2>{profile.username}</h2>
-              <p className="join-date">参加日: {formatDate(profile.createdAt)}</p>
+              <p className="join-date">参加日: {formatDate(profile.createdAt?.toISOString() || new Date().toISOString())}</p>
               <div className="profile-stats">
                 <div className="stat">
                   <span className="stat-number">{profile.postCount || 0}</span>

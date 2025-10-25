@@ -1,0 +1,188 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                BigInt      @id @default(autoincrement())
+  username          String      @unique @db.VarChar(50)
+  passwordHash      String      @map("password_hash") @db.VarChar(255)
+  signLanguageLevel SignLanguageLevel @map("sign_language_level")
+  firstLanguage     FirstLanguage @map("first_language")
+  profileText       String?     @map("profile_text") @db.Text
+  gender            Gender?
+  ageGroup          AgeGroup?   @map("age_group")
+  iconUrl           String?     @map("icon_url") @db.VarChar(255)
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  posts             Post[]
+  sentRequests      FriendRequest[] @relation("SentRequests")
+  receivedRequests  FriendRequest[] @relation("ReceivedRequests")
+  chatRooms1        ChatRoom[] @relation("User1ChatRooms")
+  chatRooms2        ChatRoom[] @relation("User2ChatRooms")
+  sentMessages      ChatMessage[] @relation("SentMessages")
+  postLikes         PostLike[]
+  videoCallSchedules VideoCallSchedule[]
+  videoCallSessions VideoCallSession[]
+
+  @@map("users")
+}
+
+model Post {
+  id              BigInt      @id @default(autoincrement())
+  userId          BigInt      @map("user_id")
+  contentText     String?     @map("content_text") @db.Text
+  contentVideoUrl String?     @map("content_video_url") @db.VarChar(255)
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes           PostLike[]
+
+  @@map("posts")
+}
+
+model FriendRequest {
+  id         BigInt              @id @default(autoincrement())
+  senderId   BigInt              @map("sender_id")
+  receiverId BigInt              @map("receiver_id")
+  message    String?             @db.VarChar(255)
+  status     FriendRequestStatus @default(pending)
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+
+  // Relations
+  sender     User                @relation("SentRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User                @relation("ReceivedRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@map("friend_requests")
+}
+
+model ChatRoom {
+  id        BigInt   @id @default(autoincrement())
+  user1Id   BigInt   @map("user1_id")
+  user2Id   BigInt   @map("user2_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user1     User     @relation("User1ChatRooms", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2     User     @relation("User2ChatRooms", fields: [user2Id], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+  videoCallSchedules VideoCallSchedule[]
+  videoCallSessions VideoCallSession[]
+
+  @@map("chat_rooms")
+}
+
+model ChatMessage {
+  id          BigInt   @id @default(autoincrement())
+  chatRoomId  BigInt   @map("chatroom_id")
+  senderId    BigInt   @map("sender_id")
+  messageText String?  @map("message_text") @db.Text
+  videoUrl    String?  @map("video_url") @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  chatRoom    ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  sender      User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
+}
+
+model PostLike {
+  id        BigInt   @id @default(autoincrement())
+  postId    BigInt   @map("post_id")
+  userId    BigInt   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@map("post_likes")
+}
+
+// Enums
+enum SignLanguageLevel {
+  BEGINNER    @map("初級")
+  INTERMEDIATE @map("中級")
+  ADVANCED    @map("上級")
+}
+
+enum FirstLanguage {
+  SPOKEN @map("音声言語")
+  SIGN   @map("手話")
+}
+
+enum Gender {
+  MALE       @map("男性")
+  FEMALE     @map("女性")
+  OTHER      @map("その他")
+  UNSPECIFIED @map("未回答")
+}
+
+enum AgeGroup {
+  TEENS        @map("10代")
+  TWENTIES     @map("20代")
+  THIRTIES     @map("30代")
+  FORTIES      @map("40代")
+  FIFTIES      @map("50代")
+  SIXTIES_PLUS @map("60代以上")
+}
+
+enum FriendRequestStatus {
+  pending
+  accepted
+  rejected
+}
+
+enum ScheduleStatus {
+  pending
+  accepted
+  rejected
+}
+
+model VideoCallSchedule {
+  id          BigInt            @id @default(autoincrement())
+  chatRoomId  BigInt            @map("chat_room_id")
+  proposerId  BigInt            @map("proposer_id")
+  title       String            @db.VarChar(255)
+  description String?           @db.Text
+  proposedAt  DateTime          @map("proposed_at")
+  status      ScheduleStatus    @default(pending)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  // Relations
+  chatRoom    ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  proposer    User     @relation(fields: [proposerId], references: [id], onDelete: Cascade)
+
+  @@map("video_call_schedules")
+}
+
+model VideoCallSession {
+  id         BigInt   @id @default(autoincrement())
+  chatRoomId BigInt   @map("chat_room_id")
+  starterId  BigInt   @map("starter_id")
+  roomId     String   @unique @map("room_id") @db.VarChar(255)
+  isActive   Boolean  @default(true) @map("is_active")
+  startedAt  DateTime @default(now()) @map("started_at")
+  endedAt    DateTime? @map("ended_at")
+
+  // Relations
+  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  starter    User     @relation(fields: [starterId], references: [id], onDelete: Cascade)
+
+  @@map("video_call_sessions")
+}

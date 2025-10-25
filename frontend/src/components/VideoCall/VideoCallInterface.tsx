@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { WebRTCService } from '../../services/webrtc';
+import { ref, onValue } from 'firebase/database';
 import type { VideoCallSession } from '../../types/api';
 
 interface VideoCallInterfaceProps {
@@ -43,8 +44,33 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
 
   const checkActiveSession = async () => {
     // Firebase Realtime Databaseでアクティブセッションをチェック
-    // 現在は簡易実装として、常に新しいセッションを作成
     console.log('Checking active session for room:', chatRoomId);
+    
+    // 通話状態を監視
+    if (user?.uid) {
+      const webrtcService = new WebRTCService(user.uid, chatRoomId);
+      const callId = `call_${chatRoomId}`;
+      
+      // 通話開始の監視
+      const statusRef = ref(webrtcService['db'], `calls/${callId}/status`);
+      onValue(statusRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data && data.started && data.starterId !== user.uid) {
+          // 他のユーザーが通話を開始した
+          console.log('Call started by:', data.starterId);
+          // 通話参加ボタンを表示する状態に変更
+          setSession({
+            id: callId,
+            chatRoomId: chatRoomId,
+            starterId: data.starterId,
+            roomId: callId,
+            isActive: true,
+            startedAt: new Date(),
+            endedAt: undefined,
+          });
+        }
+      });
+    }
   };
 
   const startCall = async () => {
@@ -180,30 +206,41 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
   const isAudioEnabled = localStream?.getAudioTracks()[0]?.enabled ?? false;
 
   if (!isInCall) {
+    // 通話が開始されているかチェック
+    const hasActiveCall = session && session.starterId !== user?.uid;
+    
     return (
       <div className="video-call-start">
         <div className="call-info">
           <h3>📹 ビデオ通話</h3>
-          <p>相手とビデオ通話を開始できます。</p>
+          {hasActiveCall ? (
+            <p>相手が通話を開始しました。参加しますか？</p>
+          ) : (
+            <p>相手とビデオ通話を開始できます。</p>
+          )}
           <p className="call-note">
             ⚠️ 通話を開始する前に、カメラとマイクへのアクセスを許可してください。
           </p>
         </div>
         <div className="call-buttons">
-          <button
-            onClick={startCall}
-            disabled={loading}
-            className="start-call-button"
-          >
-            {loading ? '準備中...' : '📹 通話を開始'}
-          </button>
-          <button
-            onClick={joinCall}
-            disabled={loading}
-            className="join-call-button"
-          >
-            {loading ? '参加中...' : '📞 通話に参加'}
-          </button>
+          {!hasActiveCall && (
+            <button
+              onClick={startCall}
+              disabled={loading}
+              className="start-call-button"
+            >
+              {loading ? '準備中...' : '📹 通話を開始'}
+            </button>
+          )}
+          {hasActiveCall && (
+            <button
+              onClick={joinCall}
+              disabled={loading}
+              className="join-call-button"
+            >
+              {loading ? '参加中...' : '📞 通話に参加'}
+            </button>
+          )}
         </div>
       </div>
     );

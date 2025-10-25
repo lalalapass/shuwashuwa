@@ -107,6 +107,8 @@ export class WebRTCService {
         timestamp: serverTimestamp(),
       });
 
+      console.log('Joined call successfully');
+
     } catch (error) {
       console.error('Failed to join call:', error);
       throw error;

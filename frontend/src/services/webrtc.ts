@@ -257,7 +257,20 @@ export class WebRTCService {
       console.log('Current ICE connection state:', this.peerConnection.iceConnectionState);
 
       // オファー処理
-      if (data.offer && data.offer.from !== this.userId) {
+      console.log('Checking offer processing:', {
+        hasOffer: !!data.offer,
+        offerFrom: data.offer?.from,
+        currentUserId: this.userId,
+        shouldProcess: data.offer && data.offer.from !== this.userId
+      });
+      
+      if (data.offer) {
+        // 自分自身のオファーの場合は無視（開始側）
+        if (data.offer.from === this.userId) {
+          console.log('Ignoring own offer from:', data.offer.from);
+          return;
+        }
+        
         console.log('Processing offer from:', data.offer.from);
         console.log('Offer data:', data.offer.offer);
         
@@ -284,7 +297,20 @@ export class WebRTCService {
       }
 
       // アンサー処理
-      if (data.answer && data.answer.from !== this.userId) {
+      console.log('Checking answer processing:', {
+        hasAnswer: !!data.answer,
+        answerFrom: data.answer?.from,
+        currentUserId: this.userId,
+        shouldProcess: data.answer && data.answer.from !== this.userId
+      });
+      
+      if (data.answer) {
+        // 自分自身のアンサーの場合は無視（参加側）
+        if (data.answer.from === this.userId) {
+          console.log('Ignoring own answer from:', data.answer.from);
+          return;
+        }
+        
         console.log('Processing answer from:', data.answer.from);
         console.log('Answer data:', data.answer.answer);
         
@@ -300,7 +326,7 @@ export class WebRTCService {
       if (data.iceCandidates) {
         console.log('Processing ICE candidates:', data.iceCandidates);
         for (const [userId, candidateData] of Object.entries(data.iceCandidates)) {
-          if (userId !== this.userId && candidateData) {
+          if (userId !== this.userId && candidateData && (candidateData as any).candidate) {
             console.log('Adding ICE candidate from:', userId, candidateData);
             try {
               await this.peerConnection.addIceCandidate((candidateData as any).candidate);
@@ -308,6 +334,8 @@ export class WebRTCService {
             } catch (iceError) {
               console.error('Error adding ICE candidate:', iceError);
             }
+          } else if (userId !== this.userId && candidateData && !(candidateData as any).candidate) {
+            console.log('ICE candidate data missing candidate property:', candidateData);
           }
         }
       }

@@ -176,16 +176,29 @@ export class WebRTCService {
 
     // リモートストリーム処理
     this.peerConnection.ontrack = (event) => {
+      console.log('Remote stream received:', event.streams[0]);
       this.remoteStream = event.streams[0];
+    };
+
+    // 接続状態の監視
+    this.peerConnection.onconnectionstatechange = () => {
+      console.log('Connection state changed:', this.peerConnection?.connectionState);
+    };
+
+    this.peerConnection.oniceconnectionstatechange = () => {
+      console.log('ICE connection state changed:', this.peerConnection?.iceConnectionState);
     };
 
     // ICE候補処理
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate && this.signalingRef) {
+        console.log('Sending ICE candidate:', event.candidate);
         set(ref(this.db, `${this.signalingRef.path}/iceCandidates/${this.userId}`), {
           candidate: event.candidate,
           timestamp: serverTimestamp(),
         });
+      } else if (event.candidate === null) {
+        console.log('ICE gathering completed');
       }
     };
 
@@ -225,7 +238,7 @@ export class WebRTCService {
       // オファー処理
       if (data.offer && data.offer.from !== this.userId) {
         console.log('Processing offer from:', data.offer.from);
-        await this.peerConnection.setRemoteDescription(data.offer);
+        await this.peerConnection.setRemoteDescription(data.offer.offer);
         const answer = await this.peerConnection.createAnswer();
         await this.peerConnection.setLocalDescription(answer);
         
@@ -240,7 +253,7 @@ export class WebRTCService {
       // アンサー処理
       if (data.answer && data.answer.from !== this.userId) {
         console.log('Processing answer from:', data.answer.from);
-        await this.peerConnection.setRemoteDescription(data.answer);
+        await this.peerConnection.setRemoteDescription(data.answer.answer);
         console.log('Answer processed');
       }
 

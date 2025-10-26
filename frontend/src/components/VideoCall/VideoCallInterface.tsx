@@ -97,13 +97,14 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
       // オファー送信
       await webrtcServiceRef.current.sendOffer();
 
-      // リモートストリーム監視
+      // リモートストリーム監視（改善版）
       const checkRemoteStream = () => {
         const remoteStream = webrtcServiceRef.current?.getRemoteStream();
         if (remoteStream) {
           setRemoteStream(remoteStream);
+          console.log('Remote stream set in UI');
         } else {
-          setTimeout(checkRemoteStream, 1000);
+          setTimeout(checkRemoteStream, 500);
         }
       };
       checkRemoteStream();
@@ -136,13 +137,14 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
         setLocalStream(localStream);
       }
 
-      // リモートストリーム監視
+      // リモートストリーム監視（改善版）
       const checkRemoteStream = () => {
         const remoteStream = webrtcServiceRef.current?.getRemoteStream();
         if (remoteStream) {
           setRemoteStream(remoteStream);
+          console.log('Remote stream set in UI');
         } else {
-          setTimeout(checkRemoteStream, 1000);
+          setTimeout(checkRemoteStream, 500);
         }
       };
       checkRemoteStream();
@@ -297,6 +299,9 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
               <div className="waiting-message">
                 <p>相手の参加を待っています...</p>
                 <div className="loading-spinner"></div>
+                <div style={{fontSize: '12px', color: '#666', marginTop: '10px'}}>
+                  Debug: {webrtcServiceRef.current ? 'WebRTC service active' : 'No WebRTC service'}
+                </div>
               </div>
             </div>
           )}

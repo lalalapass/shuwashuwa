@@ -25,8 +25,12 @@ const UsersPage: React.FC = () => {
     try {
       // 直接 usersFirestoreApi.searchUsers を使用
       const { usersFirestoreApi } = await import('../services/firestore');
-      const response = await usersFirestoreApi.searchUsers(filters);
+      
+      // 空のフィルターの場合はundefinedを渡す
+      const searchFilters = filters && Object.keys(filters).length > 0 ? filters : undefined;
+      const response = await usersFirestoreApi.searchUsers(searchFilters);
       setUsers(response.users);
+      console.log('Loaded users:', response.users.length, 'with filters:', searchFilters);
     } catch (error) {
       console.error('Failed to load users:', error);
     } finally {

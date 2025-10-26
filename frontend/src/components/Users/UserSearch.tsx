@@ -23,7 +23,7 @@ const UserSearch: React.FC<UserSearchProps> = ({ onSearch }) => {
     const newFilters = { ...filters, [key]: value };
     setFilters(newFilters);
     
-    // Apply filters
+    // Apply filters - only include non-empty values
     const searchParams: any = {};
     if (newFilters.signLanguageLevel) searchParams.signLanguageLevel = newFilters.signLanguageLevel;
     if (newFilters.firstLanguage) searchParams.firstLanguage = newFilters.firstLanguage;
@@ -31,6 +31,7 @@ const UserSearch: React.FC<UserSearchProps> = ({ onSearch }) => {
     if (newFilters.ageGroup) searchParams.ageGroup = newFilters.ageGroup;
     if (newFilters.search.trim()) searchParams.search = newFilters.search.trim();
     
+    // Always call onSearch to ensure the list updates
     onSearch(searchParams);
   };
 
@@ -57,7 +58,18 @@ const UserSearch: React.FC<UserSearchProps> = ({ onSearch }) => {
             id="search"
             placeholder="ユーザー名を入力..."
             value={filters.search}
-            onChange={(e) => handleFilterChange('search', e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setFilters(prev => ({ ...prev, search: value }));
+              
+              // 検索実行（空文字列の場合は全ユーザーを表示）
+              const searchParams: any = {};
+              if (value.trim()) {
+                searchParams.search = value.trim();
+              }
+              // 空文字列でも検索を実行してリストを更新
+              onSearch(searchParams);
+            }}
           />
         </div>
         

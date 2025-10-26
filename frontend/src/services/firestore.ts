@@ -28,44 +28,58 @@ export const usersFirestoreApi = {
     gender?: string;
     ageGroup?: string;
   }): Promise<{ users: User[] }> => {
-    let q = query(collection(db, 'users'));
-    
-    if (params?.signLanguageLevel) {
-      q = query(q, where('signLanguageLevel', '==', params.signLanguageLevel));
-    }
-    if (params?.firstLanguage) {
-      q = query(q, where('firstLanguage', '==', params.firstLanguage));
-    }
-    if (params?.gender) {
-      q = query(q, where('gender', '==', params.gender));
-    }
-    if (params?.ageGroup) {
-      q = query(q, where('ageGroup', '==', params.ageGroup));
-    }
-    
-    q = query(q, orderBy('createdAt', 'desc'), limit(50));
-    
-    const snapshot = await getDocs(q);
-    const users: User[] = [];
-    
-    snapshot.forEach((docSnapshot) => {
-      const data = docSnapshot.data();
-      users.push({
-        id: docSnapshot.id,
-        uid: docSnapshot.id,
-        username: data.username,
-        signLanguageLevel: data.signLanguageLevel,
-        firstLanguage: data.firstLanguage,
-        profileText: data.profileText,
-        gender: data.gender,
-        ageGroup: data.ageGroup,
-        iconUrl: data.iconUrl,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date(),
+    try {
+      // インデックス要件を最小化するため、基本的なクエリのみ使用
+      let q = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(200));
+      
+      const snapshot = await getDocs(q);
+      let users: User[] = [];
+      
+      snapshot.forEach((docSnapshot) => {
+        const data = docSnapshot.data();
+        users.push({
+          id: docSnapshot.id,
+          uid: docSnapshot.id,
+          username: data.username,
+          signLanguageLevel: data.signLanguageLevel,
+          firstLanguage: data.firstLanguage,
+          profileText: data.profileText,
+          gender: data.gender,
+          ageGroup: data.ageGroup,
+          iconUrl: data.iconUrl,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
+        });
       });
-    });
-    
-    return { users };
+      
+      // すべてのフィルターをクライアントサイドで適用
+      if (params?.signLanguageLevel) {
+        users = users.filter(user => user.signLanguageLevel === params.signLanguageLevel);
+      }
+      if (params?.firstLanguage) {
+        users = users.filter(user => user.firstLanguage === params.firstLanguage);
+      }
+      if (params?.gender) {
+        users = users.filter(user => user.gender === params.gender);
+      }
+      if (params?.ageGroup) {
+        users = users.filter(user => user.ageGroup === params.ageGroup);
+      }
+      if (params?.search && params.search.trim()) {
+        const searchTerm = params.search.trim().toLowerCase();
+        users = users.filter(user => 
+          user.username.toLowerCase().includes(searchTerm)
+        );
+      }
+      
+      // 結果を50件に制限
+      users = users.slice(0, 50);
+      
+      return { users };
+    } catch (error) {
+      console.error('Search users error:', error);
+      return { users: [] };
+    }
   },
 
   // ユーザー情報取得

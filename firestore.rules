@@ -43,22 +43,30 @@ service cloud.firestore {
       }
     }
     
-    // ビデオ通話予定のアクセス制御（将来実装予定）
-    // 現在は match /{document=**} でカバーされているが、以下のセキュリティルールを実装予定：
-    // match /videoCallSchedules/{scheduleId} {
-    //   allow read, write: if request.auth != null && 
-    //     (request.auth.uid == resource.data.proposerId ||
-    //      request.auth.uid in resource.data.participants ||
-    //      request.auth.uid in resource.data.invitedUsers);
-    // }
+    // WebRTCルームのアクセス制御
+    match /rooms/{roomId} {
+      allow read, write: if request.auth != null;
+      
+      // ICE候補のアクセス制御
+      match /{candidatesCollection}/{candidateId} {
+        allow read, write: if request.auth != null;
+      }
+    }
     
-    // ビデオ通話セッションのアクセス制御（将来実装予定）
-    // 現在は match /{document=**} でカバーされているが、以下のセキュリティルールを実装予定：
-    // match /videoCallSessions/{sessionId} {
-    //   allow read, write: if request.auth != null && 
-    //     (request.auth.uid == resource.data.starterId ||
-    //      request.auth.uid in resource.data.participants);
-    // }
+    // ビデオ通話予定のアクセス制御
+    match /videoCallSchedules/{scheduleId} {
+      allow read, write: if request.auth != null && 
+        (request.auth.uid == resource.data.proposerId ||
+         request.auth.uid in resource.data.participants ||
+         request.auth.uid in resource.data.invitedUsers);
+    }
+    
+    // ビデオ通話セッションのアクセス制御
+    match /videoCallSessions/{sessionId} {
+      allow read, write: if request.auth != null && 
+        (request.auth.uid == resource.data.starterId ||
+         request.auth.uid in resource.data.participants);
+    }
     
     // その他は認証のみ
     match /{document=**} {

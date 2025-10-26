@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { WebRTCService } from '../../services/webrtc';
-import { ref, onValue, off } from 'firebase/database';
-import { realtimeDb } from '../../firebase/config';
+import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { db } from '../../firebase/config';
 import type { VideoCallSession } from '../../types/api';
 
 interface VideoCallInterfaceProps {
@@ -31,7 +31,7 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
       }
       // Cleanup status listener
       if (statusListenerRef.current) {
-        off(statusListenerRef.current);
+        statusListenerRef.current();
         statusListenerRef.current = null;
       }
     };
@@ -50,45 +50,53 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
   }, [remoteStream]);
 
   const checkActiveSession = async () => {
-    // Firebase Realtime Databaseでアクティブセッションをチェック
+    // Cloud Firestoreでアクティブセッションをチェック
     console.log('Checking active session for room:', chatRoomId);
     
     // 既存のリスナーをクリーンアップ
     if (statusListenerRef.current) {
-      off(statusListenerRef.current);
+      statusListenerRef.current();
       statusListenerRef.current = null;
     }
     
     // 通話状態を監視
     if (user?.uid) {
-      const callId = `call_${chatRoomId}`;
+      // アクティブなルームを検索
+      const roomsQuery = query(
+        collection(db, 'rooms'),
+        where('chatRoomId', '==', chatRoomId),
+        where('isActive', '==', true),
+        orderBy('createdAt', 'desc'),
+        limit(1)
+      );
       
-      // 通話開始の監視
-      const statusRef = ref(realtimeDb, `calls/${callId}/status`);
-      console.log('Setting up status listener for:', `calls/${callId}/status`);
+      console.log('Setting up rooms listener for chatRoomId:', chatRoomId);
       
-      statusListenerRef.current = onValue(statusRef, (snapshot) => {
-        const data = snapshot.val();
-        console.log('Status data received:', data);
-        
-        if (data && data.started && data.starterId !== user.uid) {
-          // 他のユーザーが通話を開始した
-          console.log('Call started by:', data.starterId);
-          // 通話参加ボタンを表示する状態に変更
-          setSession({
-            id: callId,
-            chatRoomId: chatRoomId,
-            starterId: data.starterId,
-            roomId: callId,
-            isActive: true,
-            startedAt: new Date(),
-            endedAt: undefined,
-          });
-        } else if (data && data.started && data.starterId === user.uid) {
-          // 自分が通話を開始した場合
-          console.log('Call started by current user');
+      statusListenerRef.current = onSnapshot(roomsQuery, (snapshot) => {
+        if (!snapshot.empty) {
+          const roomDoc = snapshot.docs[0];
+          const roomData = roomDoc.data();
+          console.log('Room data received:', roomData);
+          
+          if (roomData.callerId !== user.uid) {
+            // 他のユーザーが通話を開始した
+            console.log('Call started by:', roomData.callerId);
+            setSession({
+              id: roomDoc.id,
+              chatRoomId: chatRoomId,
+              starterId: roomData.callerId,
+              roomId: roomDoc.id,
+              isActive: true,
+              startedAt: roomData.createdAt?.toDate() || new Date(),
+              endedAt: undefined,
+            });
+          } else {
+            // 自分が通話を開始した場合
+            console.log('Call started by current user');
+          }
         } else {
           console.log('No active call detected');
+          setSession(null);
         }
       });
     }
@@ -104,8 +112,8 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
       // WebRTC サービス初期化
       webrtcServiceRef.current = new WebRTCService(user.uid, chatRoomId);
       
-      // 通話開始
-      const session = await webrtcServiceRef.current.startCall();
+      // ルーム作成（通話開始）
+      const session = await webrtcServiceRef.current.createRoom();
       setSession(session);
       setIsInCall(true);
 
@@ -138,15 +146,15 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
   const joinCall = async () => {
     setLoading(true);
     try {
-      if (!user?.uid) {
-        throw new Error('ユーザーが認証されていません');
+      if (!user?.uid || !session) {
+        throw new Error('ユーザーが認証されていないか、セッションが見つかりません');
       }
 
       // WebRTC サービス初期化
       webrtcServiceRef.current = new WebRTCService(user.uid, chatRoomId);
       
-      // 通話参加
-      await webrtcServiceRef.current.joinCall();
+      // ルーム参加
+      await webrtcServiceRef.current.joinRoom(session.roomId);
       setIsInCall(true);
 
       // ローカルストリーム取得

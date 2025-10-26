@@ -1,37 +1,38 @@
 import { 
-  ref, 
-  set, 
-  get, 
-  remove, 
-  onValue, 
-  off,
-  push,
-  serverTimestamp 
-} from 'firebase/database';
-import { realtimeDb } from '../firebase/config';
+  collection, 
+  addDoc, 
+  doc, 
+  onSnapshot, 
+  updateDoc, 
+  deleteDoc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit
+} from 'firebase/firestore';
+import { db } from '../firebase/config';
 import type { VideoCallSession, VideoCallSchedule } from '../types/api';
 
-// WebRTC ビデオ通話サービス
+// WebRTC ビデオ通話サービス（FirebaseRTCパターン）
 export class WebRTCService {
   private peerConnection: RTCPeerConnection | null = null;
   private localStream: MediaStream | null = null;
   private remoteStream: MediaStream | null = null;
-  private callId: string | null = null;
+  private roomId: string | null = null;
   private userId: string;
   private chatRoomId: string;
-  private signalingRef: any = null;
-  private processedOffers: Set<string> = new Set();
-  private processedAnswers: Set<string> = new Set();
-  private lastProcessedOfferSdp: string | null = null;
-  private lastProcessedAnswerSdp: string | null = null;
+  private isCaller: boolean = false;
+  private unsubscribe: (() => void) | null = null;
 
   constructor(userId: string, chatRoomId: string) {
     this.userId = userId;
     this.chatRoomId = chatRoomId;
   }
 
-  // 通話開始
-  async startCall(): Promise<VideoCallSession> {
+  // ルーム作成（通話開始）
+  async createRoom(): Promise<VideoCallSession> {
     try {
       // メディアストリーム取得
       this.localStream = await navigator.mediaDevices.getUserMedia({
@@ -39,59 +40,55 @@ export class WebRTCService {
         audio: true,
       });
 
-      // 通話ID生成（チャットルームベース）
-      this.callId = `call_${this.chatRoomId}`;
-      
-      // セッション作成
-      const sessionData = {
-        chatRoomId: this.chatRoomId,
-        starterId: this.userId,
-        roomId: this.callId,
-        isActive: true,
-        startedAt: serverTimestamp(),
-        endedAt: null,
-      };
-
-      // Firebase Realtime Database にセッション保存
-      const sessionRef = push(ref(realtimeDb, 'videoCallSessions'));
-      await set(sessionRef, sessionData);
-
-      // シグナリング用のRealtime Database参照
-      this.signalingRef = ref(realtimeDb, `calls/${this.callId}/signaling`);
-      
       // WebRTC ピアコネクション設定
       await this.setupPeerConnection();
 
-      // 通話開始を通知
-      await set(ref(realtimeDb, `calls/${this.callId}/status`), {
-        started: true,
-        starterId: this.userId,
-        timestamp: serverTimestamp(),
-      });
+      // オファー作成
+      const offer = await this.peerConnection!.createOffer();
+      await this.peerConnection!.setLocalDescription(offer);
 
-      // シグナリング監視を開始
-      this.startSignalingListener();
+      // ルームデータ作成（FirebaseRTCパターン）
+      const roomData = {
+        offer: {
+          type: offer.type,
+          sdp: offer.sdp
+        },
+        chatRoomId: this.chatRoomId,
+        callerId: this.userId,
+        createdAt: new Date(),
+        isActive: true
+      };
 
-      // オファー送信
-      await this.sendOffer();
+      // Cloud Firestoreにルーム作成
+      const roomRef = await addDoc(collection(db, 'rooms'), roomData);
+      this.roomId = roomRef.id;
+      this.isCaller = true;
+
+      // ルーム監視開始
+      this.startRoomListener();
+
+      // ICE候補収集開始
+      this.collectIceCandidates();
+
+      console.log(`Room created: ${this.roomId} - You are the caller!`);
 
       return {
-        id: sessionRef.key!,
+        id: this.roomId,
         chatRoomId: this.chatRoomId,
         starterId: this.userId,
-        roomId: this.callId,
+        roomId: this.roomId,
         isActive: true,
         startedAt: new Date(),
         endedAt: undefined,
       };
     } catch (error) {
-      console.error('Failed to start call:', error);
+      console.error('Failed to create room:', error);
       throw error;
     }
   }
 
-  // 通話参加
-  async joinCall(): Promise<void> {
+  // ルーム参加
+  async joinRoom(roomId: string): Promise<void> {
     try {
       // メディアストリーム取得
       this.localStream = await navigator.mediaDevices.getUserMedia({
@@ -99,28 +96,21 @@ export class WebRTCService {
         audio: true,
       });
 
-      // 通話ID設定（チャットルームベース）
-      this.callId = `call_${this.chatRoomId}`;
+      this.roomId = roomId;
+      this.isCaller = false;
 
-      // シグナリング用のRealtime Database参照
-      this.signalingRef = ref(realtimeDb, `calls/${this.callId}/signaling`);
-      
       // WebRTC ピアコネクション設定
       await this.setupPeerConnection();
 
-      // 参加を通知
-      await set(ref(realtimeDb, `calls/${this.callId}/participants/${this.userId}`), {
-        joined: true,
-        timestamp: serverTimestamp(),
-      });
+      // ルーム監視開始
+      this.startRoomListener();
 
-      // シグナリング監視を開始
-      this.startSignalingListener();
+      // ICE候補収集開始
+      this.collectIceCandidates();
 
-      console.log('Joined call successfully');
-
+      console.log(`Joined room: ${roomId} - You are the callee!`);
     } catch (error) {
-      console.error('Failed to join call:', error);
+      console.error('Failed to join room:', error);
       throw error;
     }
   }
@@ -140,22 +130,17 @@ export class WebRTCService {
         this.peerConnection = null;
       }
 
-      // シグナリングデータ削除
-      if (this.signalingRef) {
-        await remove(this.signalingRef);
-        this.signalingRef = null;
+      // ルーム削除
+      if (this.roomId) {
+        await deleteDoc(doc(db, 'rooms', this.roomId));
+        this.roomId = null;
       }
 
-      // セッション更新
-      if (this.callId) {
-        const sessionRef = ref(realtimeDb, `videoCallSessions/${this.callId}`);
-        await set(sessionRef, {
-          isActive: false,
-          endedAt: serverTimestamp(),
-        });
+      // 監視停止
+      if (this.unsubscribe) {
+        this.unsubscribe();
+        this.unsubscribe = null;
       }
-
-      this.callId = null;
     } catch (error) {
       console.error('Failed to end call:', error);
       throw error;
@@ -181,7 +166,6 @@ export class WebRTCService {
     // リモートストリーム処理
     this.peerConnection.ontrack = (event) => {
       console.log('Remote stream received:', event.streams[0]);
-      console.log('Remote stream tracks:', event.streams[0].getTracks());
       this.remoteStream = event.streams[0];
     };
 
@@ -192,231 +176,105 @@ export class WebRTCService {
       
       if (state === 'connected') {
         console.log('✅ WebRTC connection established!');
-        // 接続確立時にリモートストリームを確認
-        setTimeout(() => this.checkRemoteStream(), 500);
       } else if (state === 'connecting') {
         console.log('🔄 WebRTC connecting...');
       } else if (state === 'failed' || state === 'disconnected') {
         console.log('❌ WebRTC connection failed or disconnected');
       }
     };
+  }
 
-    this.peerConnection.oniceconnectionstatechange = () => {
-      const state = this.peerConnection?.iceConnectionState;
-      console.log('ICE connection state changed:', state);
+  // ルーム監視開始（FirebaseRTCパターン）
+  private startRoomListener(): void {
+    if (!this.roomId) return;
+
+    const roomRef = doc(db, 'rooms', this.roomId);
+    
+    this.unsubscribe = onSnapshot(roomRef, async (snapshot) => {
+      if (!snapshot.exists()) return;
       
-      if (state === 'connected' || state === 'completed') {
-        console.log('✅ ICE connection established!');
-        this.checkRemoteStream();
-      } else if (state === 'failed') {
-        console.log('❌ ICE connection failed');
-      }
-    };
+      const data = snapshot.data();
+      console.log('Room updated:', data);
 
-    this.peerConnection.onicegatheringstatechange = () => {
-      console.log('ICE gathering state changed:', this.peerConnection?.iceGatheringState);
-    };
-
-    this.peerConnection.onsignalingstatechange = () => {
-      console.log('Signaling state changed:', this.peerConnection?.signalingState);
-    };
-
-    // ICE候補処理
-    this.peerConnection.onicecandidate = (event) => {
-      if (event.candidate && this.signalingRef) {
-        console.log('Sending ICE candidate:', event.candidate.type);
-        const iceCandidatePath = `calls/${this.callId}/signaling/iceCandidates/${this.userId}`;
-        set(ref(realtimeDb, iceCandidatePath), {
-          candidate: event.candidate,
-          timestamp: serverTimestamp(),
-        });
-      } else if (event.candidate === null) {
-        console.log('✅ ICE gathering completed');
-        // ICE gathering完了時に接続状態を強制チェック
-        setTimeout(() => this.forceConnectionCheck(), 1000);
-        setTimeout(() => this.checkRemoteStream(), 2000);
-      }
-    };
-
-    // シグナリングデータ監視
-    if (this.signalingRef) {
-      onValue(this.signalingRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          this.handleSignalingData(data);
-        }
-      });
-    }
-  }
-
-  // シグナリング監視開始
-  private startSignalingListener(): void {
-    if (!this.signalingRef) return;
-
-    console.log('Starting signaling listener for:', this.callId);
-    
-    // シグナリングデータの監視（一度だけ処理）
-    let hasProcessedOffer = false;
-    let hasProcessedAnswer = false;
-    let lastOfferTimestamp = 0;
-    let lastAnswerTimestamp = 0;
-    
-    onValue(this.signalingRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        // オファー処理（一度だけ、タイムスタンプで重複チェック）
-        if (data.offer && !hasProcessedOffer && data.offer.timestamp > lastOfferTimestamp) {
-          hasProcessedOffer = true;
-          lastOfferTimestamp = data.offer.timestamp;
-          console.log('Processing offer (first time)');
-          this.handleSignalingData({ offer: data.offer });
-        }
-        
-        // アンサー処理（一度だけ、タイムスタンプで重複チェック）
-        if (data.answer && !hasProcessedAnswer && data.answer.timestamp > lastAnswerTimestamp) {
-          hasProcessedAnswer = true;
-          lastAnswerTimestamp = data.answer.timestamp;
-          console.log('Processing answer (first time)');
-          this.handleSignalingData({ answer: data.answer });
-        }
-        
-        // ICE候補は継続的に処理
-        if (data.iceCandidates) {
-          this.handleSignalingData({ iceCandidates: data.iceCandidates });
-        }
-      }
-    });
-  }
-
-  // シグナリングデータ処理（簡素化版）
-  private async handleSignalingData(data: any): Promise<void> {
-    if (!this.peerConnection) {
-      console.log('No peer connection available for signaling data');
-      return;
-    }
-
-    try {
-      console.log('Handling signaling data:', data);
-      console.log('Current signaling state:', this.peerConnection.signalingState);
-      console.log('Current connection state:', this.peerConnection.connectionState);
+      if (!this.peerConnection) return;
 
       // オファー処理（参加側）
-      if (data.offer && data.offer.from !== this.userId) {
-        console.log('Processing offer from:', data.offer.from);
-        
-        // 重複チェック
-        const offerSdp = data.offer.offer.sdp;
-        if (this.lastProcessedOfferSdp === offerSdp) {
-          console.log('Ignoring duplicate offer');
-          return;
-        }
-        
-        // 状態チェック
-        if (this.peerConnection.signalingState !== 'stable') {
-          console.log('Ignoring offer - not in stable state:', this.peerConnection.signalingState);
-          return;
-        }
-        
+      if (data.offer && !this.isCaller && !this.peerConnection.currentRemoteDescription) {
+        console.log('Processing offer from caller');
         try {
-          await this.peerConnection.setRemoteDescription(data.offer.offer);
-          console.log('Remote description set successfully');
+          const offer = new RTCSessionDescription(data.offer);
+          await this.peerConnection.setRemoteDescription(offer);
           
           const answer = await this.peerConnection.createAnswer();
           await this.peerConnection.setLocalDescription(answer);
-          console.log('Answer created and set locally');
           
           // アンサーを送信
-          const answerPath = `calls/${this.callId}/signaling/answer`;
-          await set(ref(realtimeDb, answerPath), {
-            answer: answer,
-            from: this.userId,
-            timestamp: serverTimestamp(),
+          await updateDoc(roomRef, {
+            answer: {
+              type: answer.type,
+              sdp: answer.sdp
+            }
           });
-          console.log('Answer sent to database');
           
-          this.lastProcessedOfferSdp = offerSdp;
+          console.log('Answer sent');
         } catch (error) {
           console.error('Error processing offer:', error);
         }
       }
 
       // アンサー処理（開始側）
-      if (data.answer && data.answer.from !== this.userId) {
-        console.log('Processing answer from:', data.answer.from);
-        
-        // 重複チェック
-        const answerSdp = data.answer.answer.sdp;
-        if (this.lastProcessedAnswerSdp === answerSdp) {
-          console.log('Ignoring duplicate answer');
-          return;
-        }
-        
-        // 状態チェック
-        if (this.peerConnection.signalingState !== 'have-local-offer') {
-          console.log('Ignoring answer - not in have-local-offer state:', this.peerConnection.signalingState);
-          return;
-        }
-        
+      if (data.answer && this.isCaller && !this.peerConnection.currentRemoteDescription) {
+        console.log('Processing answer from callee');
         try {
-          await this.peerConnection.setRemoteDescription(data.answer.answer);
+          const answer = new RTCSessionDescription(data.answer);
+          await this.peerConnection.setRemoteDescription(answer);
           console.log('Answer processed successfully');
-          
-          this.lastProcessedAnswerSdp = answerSdp;
         } catch (error) {
           console.error('Error processing answer:', error);
         }
       }
+    });
+  }
 
-      // ICE候補処理
-      if (data.iceCandidates) {
-        for (const [userId, candidateData] of Object.entries(data.iceCandidates)) {
-          if (userId !== this.userId && candidateData && (candidateData as any).candidate) {
-            try {
-              await this.peerConnection.addIceCandidate((candidateData as any).candidate);
-              console.log('ICE candidate added from:', userId);
-            } catch (error) {
-              console.error('Error adding ICE candidate:', error);
-            }
+  // ICE候補収集（FirebaseRTCパターン）
+  private collectIceCandidates(): void {
+    if (!this.peerConnection || !this.roomId) return;
+
+    const localName = this.isCaller ? 'callerCandidates' : 'calleeCandidates';
+    const remoteName = this.isCaller ? 'calleeCandidates' : 'callerCandidates';
+    const candidatesCollection = collection(db, 'rooms', this.roomId, localName);
+
+    // ICE候補送信
+    this.peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        const candidateData = {
+          candidate: event.candidate.candidate,
+          sdpMLineIndex: event.candidate.sdpMLineIndex,
+          sdpMid: event.candidate.sdpMid
+        };
+        addDoc(candidatesCollection, candidateData);
+        console.log('ICE candidate sent');
+      }
+    };
+
+    // リモートICE候補監視
+    const remoteCandidatesCollection = collection(db, 'rooms', this.roomId, remoteName);
+    onSnapshot(remoteCandidatesCollection, (snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        if (change.type === 'added') {
+          const candidateData = change.doc.data();
+          try {
+            const candidate = new RTCIceCandidate(candidateData);
+            await this.peerConnection!.addIceCandidate(candidate);
+            console.log('ICE candidate added');
+          } catch (error) {
+            console.error('Error adding ICE candidate:', error);
           }
         }
-      }
-    } catch (error) {
-      console.error('Failed to handle signaling data:', error);
-    }
+      });
+    });
   }
 
-  // オファー送信
-  async sendOffer(): Promise<void> {
-    if (!this.peerConnection) {
-      console.log('No peer connection available for sending offer');
-      return;
-    }
-
-    try {
-      console.log('Creating offer...');
-      const offer = await this.peerConnection.createOffer();
-      console.log('Offer created:', offer);
-      
-      console.log('Setting local description...');
-      await this.peerConnection.setLocalDescription(offer);
-      console.log('Local description set successfully');
-      
-      if (this.signalingRef) {
-        const offerPath = `calls/${this.callId}/signaling/offer`;
-        console.log('Sending offer to database:', offerPath);
-        await set(ref(realtimeDb, offerPath), {
-          offer: offer,
-          from: this.userId,
-          timestamp: serverTimestamp(),
-        });
-        console.log('Offer sent to database successfully');
-      } else {
-        console.error('No signaling reference available');
-      }
-    } catch (error) {
-      console.error('Failed to send offer:', error);
-    }
-  }
 
   // ローカルストリーム取得
   getLocalStream(): MediaStream | null {
@@ -428,44 +286,14 @@ export class WebRTCService {
     return this.remoteStream;
   }
 
-  // リモートストリームの確認
-  private checkRemoteStream(): void {
-    if (this.peerConnection && this.peerConnection.getReceivers) {
-      const receivers = this.peerConnection.getReceivers();
-      console.log('Checking receivers:', receivers.length);
-      
-      for (const receiver of receivers) {
-        if (receiver.track && receiver.track.kind === 'video') {
-          console.log('Found video track in receiver');
-          // 新しいストリームを作成
-          const stream = new MediaStream([receiver.track]);
-          this.remoteStream = stream;
-          console.log('Remote stream updated from receiver');
-        }
-      }
-    }
-  }
-
-  // 接続確立の強制試行
-  private forceConnectionCheck(): void {
-    if (this.peerConnection) {
-      console.log('Force checking connection state...');
-      console.log('Connection state:', this.peerConnection.connectionState);
-      console.log('ICE connection state:', this.peerConnection.iceConnectionState);
-      console.log('Signaling state:', this.peerConnection.signalingState);
-      
-      // 接続が確立されている場合の処理
-      if (this.peerConnection.connectionState === 'connected' || 
-          this.peerConnection.iceConnectionState === 'connected') {
-        console.log('✅ Connection is established!');
-        this.checkRemoteStream();
-      }
-    }
-  }
-
   // 通話状態取得
   isInCall(): boolean {
-    return this.callId !== null && this.peerConnection !== null;
+    return this.roomId !== null && this.peerConnection !== null;
+  }
+
+  // ルームID取得
+  getRoomId(): string | null {
+    return this.roomId;
   }
 
   // クリーンアップ
@@ -476,8 +304,8 @@ export class WebRTCService {
     if (this.peerConnection) {
       this.peerConnection.close();
     }
-    if (this.signalingRef) {
-      off(this.signalingRef);
+    if (this.unsubscribe) {
+      this.unsubscribe();
     }
   }
 }
@@ -499,15 +327,14 @@ export const videoCallScheduleApi = {
       description: data.description || '',
       proposedAt: data.proposedAt,
       status: 'pending',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
-    const scheduleRef = push(ref(realtimeDb, 'videoCallSchedules'));
-    await set(scheduleRef, scheduleData);
+    const scheduleRef = await addDoc(collection(db, 'videoCallSchedules'), scheduleData);
 
     const schedule: VideoCallSchedule = {
-      id: scheduleRef.key!,
+      id: scheduleRef.id,
       chatRoomId: data.chatRoomId,
       proposerId: data.proposerId,
       proposerUsername: 'Unknown User', // 後で取得
@@ -524,39 +351,40 @@ export const videoCallScheduleApi = {
 
   // スケジュール一覧取得
   getSchedules: async (chatRoomId: string): Promise<{ schedules: VideoCallSchedule[] }> => {
-    const schedulesRef = ref(realtimeDb, 'videoCallSchedules');
-    const snapshot = await get(schedulesRef);
+    const schedulesQuery = query(
+      collection(db, 'videoCallSchedules'),
+      where('chatRoomId', '==', chatRoomId),
+      orderBy('createdAt', 'desc')
+    );
     
+    const snapshot = await getDocs(schedulesQuery);
     const schedules: VideoCallSchedule[] = [];
-    if (snapshot.exists()) {
-      const data = snapshot.val();
-      for (const [id, schedule] of Object.entries(data)) {
-        if ((schedule as any).chatRoomId === chatRoomId) {
-          schedules.push({
-            id,
-            chatRoomId: (schedule as any).chatRoomId,
-            proposerId: (schedule as any).proposerId,
-            proposerUsername: 'Unknown User', // 後で取得
-            title: (schedule as any).title,
-            description: (schedule as any).description,
-            proposedAt: (schedule as any).proposedAt,
-            status: (schedule as any).status,
-            createdAt: (schedule as any).createdAt?.toDate() || new Date(),
-            updatedAt: (schedule as any).updatedAt?.toDate() || new Date(),
-          });
-        }
-      }
-    }
+    
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      schedules.push({
+        id: doc.id,
+        chatRoomId: data.chatRoomId,
+        proposerId: data.proposerId,
+        proposerUsername: 'Unknown User', // 後で取得
+        title: data.title,
+        description: data.description,
+        proposedAt: data.proposedAt,
+        status: data.status,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
+      });
+    });
 
     return { schedules };
   },
 
   // スケジュール回答
   respondToSchedule: async (scheduleId: string, action: 'accept' | 'reject'): Promise<void> => {
-    const scheduleRef = ref(realtimeDb, `videoCallSchedules/${scheduleId}`);
-    await set(scheduleRef, {
+    const scheduleRef = doc(db, 'videoCallSchedules', scheduleId);
+    await updateDoc(scheduleRef, {
       status: action === 'accept' ? 'accepted' : 'rejected',
-      updatedAt: serverTimestamp(),
+      updatedAt: new Date(),
     });
   },
 };

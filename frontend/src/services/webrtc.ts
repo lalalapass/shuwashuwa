@@ -187,16 +187,27 @@ export class WebRTCService {
 
     // 接続状態の監視
     this.peerConnection.onconnectionstatechange = () => {
-      console.log('Connection state changed:', this.peerConnection?.connectionState);
-      if (this.peerConnection?.connectionState === 'connected') {
-        console.log('WebRTC connection established!');
+      const state = this.peerConnection?.connectionState;
+      console.log('Connection state changed:', state);
+      
+      if (state === 'connected') {
+        console.log('✅ WebRTC connection established!');
+        // 接続確立時にリモートストリームを確認
+        this.checkRemoteStream();
+      } else if (state === 'failed' || state === 'disconnected') {
+        console.log('❌ WebRTC connection failed or disconnected');
       }
     };
 
     this.peerConnection.oniceconnectionstatechange = () => {
-      console.log('ICE connection state changed:', this.peerConnection?.iceConnectionState);
-      if (this.peerConnection?.iceConnectionState === 'connected') {
-        console.log('ICE connection established!');
+      const state = this.peerConnection?.iceConnectionState;
+      console.log('ICE connection state changed:', state);
+      
+      if (state === 'connected' || state === 'completed') {
+        console.log('✅ ICE connection established!');
+        this.checkRemoteStream();
+      } else if (state === 'failed') {
+        console.log('❌ ICE connection failed');
       }
     };
 
@@ -211,14 +222,16 @@ export class WebRTCService {
     // ICE候補処理
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate && this.signalingRef) {
-        console.log('Sending ICE candidate:', event.candidate);
+        console.log('Sending ICE candidate:', event.candidate.type);
         const iceCandidatePath = `calls/${this.callId}/signaling/iceCandidates/${this.userId}`;
         set(ref(realtimeDb, iceCandidatePath), {
           candidate: event.candidate,
           timestamp: serverTimestamp(),
         });
       } else if (event.candidate === null) {
-        console.log('ICE gathering completed');
+        console.log('✅ ICE gathering completed');
+        // ICE gathering完了時にリモートストリームを確認
+        setTimeout(() => this.checkRemoteStream(), 1000);
       }
     };
 
@@ -248,7 +261,7 @@ export class WebRTCService {
     });
   }
 
-  // シグナリングデータ処理
+  // シグナリングデータ処理（簡素化版）
   private async handleSignalingData(data: any): Promise<void> {
     if (!this.peerConnection) {
       console.log('No peer connection available for signaling data');
@@ -257,61 +270,35 @@ export class WebRTCService {
 
     try {
       console.log('Handling signaling data:', data);
-      console.log('Current peer connection state:', this.peerConnection.connectionState);
-      console.log('Current ICE connection state:', this.peerConnection.iceConnectionState);
+      console.log('Current signaling state:', this.peerConnection.signalingState);
+      console.log('Current connection state:', this.peerConnection.connectionState);
 
-      // オファー処理
-      console.log('Checking offer processing:', {
-        hasOffer: !!data.offer,
-        offerFrom: data.offer?.from,
-        currentUserId: this.userId,
-        shouldProcess: data.offer && data.offer.from !== this.userId
-      });
-      
-      if (data.offer) {
-        // 自分自身のオファーの場合は無視（開始側）
-        if (data.offer.from === this.userId) {
-          console.log('Ignoring own offer from:', data.offer.from);
-          return;
-        }
-        
-        // 即座に状態チェック
-        if (this.peerConnection.signalingState !== 'stable') {
-          console.log('Ignoring offer - wrong signaling state (immediate check):', this.peerConnection.signalingState);
-          return;
-        }
-        
-        // 重複チェック（SDPベース）
-        const offerSdp = data.offer.offer.sdp;
-        console.log('Checking duplicate offer:', {
-          offerFrom: data.offer.from,
-          offerTimestamp: data.offer.timestamp,
-          offerSdpLength: offerSdp.length,
-          lastProcessedOfferSdp: this.lastProcessedOfferSdp?.length,
-          isDuplicate: this.lastProcessedOfferSdp === offerSdp
-        });
-        
-        if (this.lastProcessedOfferSdp === offerSdp) {
-          console.log('Ignoring duplicate offer (same SDP)');
-          return;
-        }
-        
-        // 状態チェックは既に上で実行済み
-        
+      // オファー処理（参加側）
+      if (data.offer && data.offer.from !== this.userId) {
         console.log('Processing offer from:', data.offer.from);
-        console.log('Offer data:', data.offer.offer);
-        console.log('Current signaling state:', this.peerConnection.signalingState);
+        
+        // 重複チェック
+        const offerSdp = data.offer.offer.sdp;
+        if (this.lastProcessedOfferSdp === offerSdp) {
+          console.log('Ignoring duplicate offer');
+          return;
+        }
+        
+        // 状態チェック
+        if (this.peerConnection.signalingState !== 'stable') {
+          console.log('Ignoring offer - not in stable state:', this.peerConnection.signalingState);
+          return;
+        }
         
         try {
           await this.peerConnection.setRemoteDescription(data.offer.offer);
           console.log('Remote description set successfully');
           
           const answer = await this.peerConnection.createAnswer();
-          console.log('Answer created:', answer);
-          
           await this.peerConnection.setLocalDescription(answer);
-          console.log('Local description set successfully');
+          console.log('Answer created and set locally');
           
+          // アンサーを送信
           const answerPath = `calls/${this.callId}/signaling/answer`;
           await set(ref(realtimeDb, answerPath), {
             answer: answer,
@@ -320,80 +307,49 @@ export class WebRTCService {
           });
           console.log('Answer sent to database');
           
-          // 処理済みオファーとして記録
           this.lastProcessedOfferSdp = offerSdp;
-          console.log('Offer marked as processed (SDP length):', offerSdp.length);
-        } catch (offerError) {
-          console.error('Error processing offer:', offerError);
+        } catch (error) {
+          console.error('Error processing offer:', error);
         }
       }
 
-      // アンサー処理
-      console.log('Checking answer processing:', {
-        hasAnswer: !!data.answer,
-        answerFrom: data.answer?.from,
-        currentUserId: this.userId,
-        shouldProcess: data.answer && data.answer.from !== this.userId
-      });
-      
-      if (data.answer) {
-        // 自分自身のアンサーの場合は無視（参加側）
-        if (data.answer.from === this.userId) {
-          console.log('Ignoring own answer from:', data.answer.from);
-          return;
-        }
-        
-        // 重複チェック（SDPベース）
-        const answerSdp = data.answer.answer.sdp;
-        console.log('Checking duplicate answer:', {
-          answerFrom: data.answer.from,
-          answerTimestamp: data.answer.timestamp,
-          answerSdpLength: answerSdp.length,
-          lastProcessedAnswerSdp: this.lastProcessedAnswerSdp?.length,
-          isDuplicate: this.lastProcessedAnswerSdp === answerSdp
-        });
-        
-        if (this.lastProcessedAnswerSdp === answerSdp) {
-          console.log('Ignoring duplicate answer (same SDP)');
-          return;
-        }
-        
-        // WebRTCの状態をチェック
-        if (this.peerConnection.signalingState !== 'have-local-offer') {
-          console.log('Ignoring answer - wrong signaling state:', this.peerConnection.signalingState);
-          return;
-        }
-        
+      // アンサー処理（開始側）
+      if (data.answer && data.answer.from !== this.userId) {
         console.log('Processing answer from:', data.answer.from);
-        console.log('Answer data:', data.answer.answer);
-        console.log('Current signaling state:', this.peerConnection.signalingState);
+        
+        // 重複チェック
+        const answerSdp = data.answer.answer.sdp;
+        if (this.lastProcessedAnswerSdp === answerSdp) {
+          console.log('Ignoring duplicate answer');
+          return;
+        }
+        
+        // 状態チェック
+        if (this.peerConnection.signalingState !== 'have-local-offer') {
+          console.log('Ignoring answer - not in have-local-offer state:', this.peerConnection.signalingState);
+          return;
+        }
         
         try {
           await this.peerConnection.setRemoteDescription(data.answer.answer);
           console.log('Answer processed successfully');
           
-          // 処理済みアンサーとして記録
           this.lastProcessedAnswerSdp = answerSdp;
-          console.log('Answer marked as processed (SDP length):', answerSdp.length);
-        } catch (answerError) {
-          console.error('Error processing answer:', answerError);
+        } catch (error) {
+          console.error('Error processing answer:', error);
         }
       }
 
       // ICE候補処理
       if (data.iceCandidates) {
-        console.log('Processing ICE candidates:', data.iceCandidates);
         for (const [userId, candidateData] of Object.entries(data.iceCandidates)) {
           if (userId !== this.userId && candidateData && (candidateData as any).candidate) {
-            console.log('Adding ICE candidate from:', userId, candidateData);
             try {
               await this.peerConnection.addIceCandidate((candidateData as any).candidate);
-              console.log('ICE candidate added successfully');
-            } catch (iceError) {
-              console.error('Error adding ICE candidate:', iceError);
+              console.log('ICE candidate added from:', userId);
+            } catch (error) {
+              console.error('Error adding ICE candidate:', error);
             }
-          } else if (userId !== this.userId && candidateData && !(candidateData as any).candidate) {
-            console.log('ICE candidate data missing candidate property:', candidateData);
           }
         }
       }
@@ -443,6 +399,24 @@ export class WebRTCService {
   // リモートストリーム取得
   getRemoteStream(): MediaStream | null {
     return this.remoteStream;
+  }
+
+  // リモートストリームの確認
+  private checkRemoteStream(): void {
+    if (this.peerConnection && this.peerConnection.getReceivers) {
+      const receivers = this.peerConnection.getReceivers();
+      console.log('Checking receivers:', receivers.length);
+      
+      for (const receiver of receivers) {
+        if (receiver.track && receiver.track.kind === 'video') {
+          console.log('Found video track in receiver');
+          // 新しいストリームを作成
+          const stream = new MediaStream([receiver.track]);
+          this.remoteStream = stream;
+          console.log('Remote stream updated from receiver');
+        }
+      }
+    }
   }
 
   // 通話状態取得

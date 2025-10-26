@@ -118,11 +118,11 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
       // リモートストリーム監視（改善版）
       const checkRemoteStream = () => {
         const remoteStream = webrtcServiceRef.current?.getRemoteStream();
-        if (remoteStream) {
+        if (remoteStream && remoteStream.getTracks().length > 0) {
           setRemoteStream(remoteStream);
-          console.log('Remote stream set in UI');
+          console.log('✅ Remote stream set in UI with', remoteStream.getTracks().length, 'tracks');
         } else {
-          setTimeout(checkRemoteStream, 500);
+          setTimeout(checkRemoteStream, 1000);
         }
       };
       checkRemoteStream();
@@ -158,11 +158,11 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
       // リモートストリーム監視（改善版）
       const checkRemoteStream = () => {
         const remoteStream = webrtcServiceRef.current?.getRemoteStream();
-        if (remoteStream) {
+        if (remoteStream && remoteStream.getTracks().length > 0) {
           setRemoteStream(remoteStream);
-          console.log('Remote stream set in UI');
+          console.log('✅ Remote stream set in UI with', remoteStream.getTracks().length, 'tracks');
         } else {
-          setTimeout(checkRemoteStream, 500);
+          setTimeout(checkRemoteStream, 1000);
         }
       };
       checkRemoteStream();

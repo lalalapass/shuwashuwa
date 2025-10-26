@@ -22,6 +22,8 @@ export class WebRTCService {
   private signalingRef: any = null;
   private processedOffers: Set<string> = new Set();
   private processedAnswers: Set<string> = new Set();
+  private lastProcessedOfferSdp: string | null = null;
+  private lastProcessedAnswerSdp: string | null = null;
 
   constructor(userId: string, chatRoomId: string) {
     this.userId = userId;
@@ -273,31 +275,28 @@ export class WebRTCService {
           return;
         }
         
-        // 重複チェック
-        const offerKey = `${data.offer.from}_${data.offer.timestamp}`;
+        // 即座に状態チェック
+        if (this.peerConnection.signalingState !== 'stable') {
+          console.log('Ignoring offer - wrong signaling state (immediate check):', this.peerConnection.signalingState);
+          return;
+        }
+        
+        // 重複チェック（SDPベース）
+        const offerSdp = data.offer.offer.sdp;
         console.log('Checking duplicate offer:', {
-          offerKey,
           offerFrom: data.offer.from,
           offerTimestamp: data.offer.timestamp,
-          processedOffers: Array.from(this.processedOffers),
-          isDuplicate: this.processedOffers.has(offerKey)
+          offerSdpLength: offerSdp.length,
+          lastProcessedOfferSdp: this.lastProcessedOfferSdp?.length,
+          isDuplicate: this.lastProcessedOfferSdp === offerSdp
         });
         
-        if (this.processedOffers.has(offerKey)) {
-          console.log('Ignoring duplicate offer:', offerKey);
+        if (this.lastProcessedOfferSdp === offerSdp) {
+          console.log('Ignoring duplicate offer (same SDP)');
           return;
         }
         
-        // WebRTCの状態をチェック
-        console.log('Checking signaling state:', {
-          currentState: this.peerConnection.signalingState,
-          shouldProcess: this.peerConnection.signalingState === 'stable'
-        });
-        
-        if (this.peerConnection.signalingState !== 'stable') {
-          console.log('Ignoring offer - wrong signaling state:', this.peerConnection.signalingState);
-          return;
-        }
+        // 状態チェックは既に上で実行済み
         
         console.log('Processing offer from:', data.offer.from);
         console.log('Offer data:', data.offer.offer);
@@ -322,8 +321,8 @@ export class WebRTCService {
           console.log('Answer sent to database');
           
           // 処理済みオファーとして記録
-          this.processedOffers.add(offerKey);
-          console.log('Offer marked as processed:', offerKey);
+          this.lastProcessedOfferSdp = offerSdp;
+          console.log('Offer marked as processed (SDP length):', offerSdp.length);
         } catch (offerError) {
           console.error('Error processing offer:', offerError);
         }
@@ -344,10 +343,18 @@ export class WebRTCService {
           return;
         }
         
-        // 重複チェック
-        const answerKey = `${data.answer.from}_${data.answer.timestamp}`;
-        if (this.processedAnswers.has(answerKey)) {
-          console.log('Ignoring duplicate answer:', answerKey);
+        // 重複チェック（SDPベース）
+        const answerSdp = data.answer.answer.sdp;
+        console.log('Checking duplicate answer:', {
+          answerFrom: data.answer.from,
+          answerTimestamp: data.answer.timestamp,
+          answerSdpLength: answerSdp.length,
+          lastProcessedAnswerSdp: this.lastProcessedAnswerSdp?.length,
+          isDuplicate: this.lastProcessedAnswerSdp === answerSdp
+        });
+        
+        if (this.lastProcessedAnswerSdp === answerSdp) {
+          console.log('Ignoring duplicate answer (same SDP)');
           return;
         }
         
@@ -366,7 +373,8 @@ export class WebRTCService {
           console.log('Answer processed successfully');
           
           // 処理済みアンサーとして記録
-          this.processedAnswers.add(answerKey);
+          this.lastProcessedAnswerSdp = answerSdp;
+          console.log('Answer marked as processed (SDP length):', answerSdp.length);
         } catch (answerError) {
           console.error('Error processing answer:', answerError);
         }

@@ -350,10 +350,53 @@ export class WebRTCService {
     // 新しいピアコネクションを作成
     await this.setupPeerConnection();
     
+    // 既存のオファー/アンサーを再処理
+    await this.reprocessExistingSignaling();
+    
     // ICE候補収集を再開
     this.collectIceCandidates();
     
     console.log('Peer connection recreated');
+  }
+
+  // 既存のシグナリングデータを再処理
+  private async reprocessExistingSignaling(): Promise<void> {
+    if (!this.roomId || !this.peerConnection) return;
+
+    try {
+      const roomRef = doc(db, 'rooms', this.roomId);
+      const roomSnapshot = await getDoc(roomRef);
+      
+      if (!roomSnapshot.exists()) return;
+      
+      const roomData = roomSnapshot.data();
+      
+      // オファー処理（参加側）
+      if (roomData.offer && !this.isCaller) {
+        console.log('Reprocessing offer during recreation');
+        const offer = new RTCSessionDescription(roomData.offer);
+        await this.peerConnection.setRemoteDescription(offer);
+        
+        const answer = await this.peerConnection.createAnswer();
+        await this.peerConnection.setLocalDescription(answer);
+        
+        await updateDoc(roomRef, {
+          answer: {
+            type: answer.type,
+            sdp: answer.sdp
+          }
+        });
+      }
+      
+      // アンサー処理（開始側）
+      if (roomData.answer && this.isCaller) {
+        console.log('Reprocessing answer during recreation');
+        const answer = new RTCSessionDescription(roomData.answer);
+        await this.peerConnection.setRemoteDescription(answer);
+      }
+    } catch (error) {
+      console.error('Error reprocessing signaling data:', error);
+    }
   }
 
   // クリーンアップ

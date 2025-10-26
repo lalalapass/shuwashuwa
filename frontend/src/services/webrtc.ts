@@ -275,13 +275,26 @@ export class WebRTCService {
         
         // 重複チェック
         const offerKey = `${data.offer.from}_${data.offer.timestamp}`;
+        console.log('Checking duplicate offer:', {
+          offerKey,
+          offerFrom: data.offer.from,
+          offerTimestamp: data.offer.timestamp,
+          processedOffers: Array.from(this.processedOffers),
+          isDuplicate: this.processedOffers.has(offerKey)
+        });
+        
         if (this.processedOffers.has(offerKey)) {
           console.log('Ignoring duplicate offer:', offerKey);
           return;
         }
         
         // WebRTCの状態をチェック
-        if (this.peerConnection.signalingState !== 'stable' && this.peerConnection.signalingState !== 'have-local-offer') {
+        console.log('Checking signaling state:', {
+          currentState: this.peerConnection.signalingState,
+          shouldProcess: this.peerConnection.signalingState === 'stable'
+        });
+        
+        if (this.peerConnection.signalingState !== 'stable') {
           console.log('Ignoring offer - wrong signaling state:', this.peerConnection.signalingState);
           return;
         }
@@ -310,6 +323,7 @@ export class WebRTCService {
           
           // 処理済みオファーとして記録
           this.processedOffers.add(offerKey);
+          console.log('Offer marked as processed:', offerKey);
         } catch (offerError) {
           console.error('Error processing offer:', offerError);
         }

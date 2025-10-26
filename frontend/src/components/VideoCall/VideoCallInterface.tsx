@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { WebRTCService } from '../../services/webrtc';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, off } from 'firebase/database';
+import { realtimeDb } from '../../firebase/config';
 import type { VideoCallSession } from '../../types/api';
 
 interface VideoCallInterfaceProps {
@@ -19,6 +20,7 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const webrtcServiceRef = useRef<WebRTCService | null>(null);
+  const statusListenerRef = useRef<any>(null);
 
   useEffect(() => {
     checkActiveSession();
@@ -26,6 +28,11 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
       // Cleanup streams when component unmounts
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
+      }
+      // Cleanup status listener
+      if (statusListenerRef.current) {
+        off(statusListenerRef.current);
+        statusListenerRef.current = null;
       }
     };
   }, [chatRoomId]);
@@ -46,15 +53,24 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
     // Firebase Realtime Databaseでアクティブセッションをチェック
     console.log('Checking active session for room:', chatRoomId);
     
+    // 既存のリスナーをクリーンアップ
+    if (statusListenerRef.current) {
+      off(statusListenerRef.current);
+      statusListenerRef.current = null;
+    }
+    
     // 通話状態を監視
     if (user?.uid) {
-      const webrtcService = new WebRTCService(user.uid, chatRoomId);
       const callId = `call_${chatRoomId}`;
       
       // 通話開始の監視
-      const statusRef = ref(webrtcService['db'], `calls/${callId}/status`);
-      onValue(statusRef, (snapshot) => {
+      const statusRef = ref(realtimeDb, `calls/${callId}/status`);
+      console.log('Setting up status listener for:', `calls/${callId}/status`);
+      
+      statusListenerRef.current = onValue(statusRef, (snapshot) => {
         const data = snapshot.val();
+        console.log('Status data received:', data);
+        
         if (data && data.started && data.starterId !== user.uid) {
           // 他のユーザーが通話を開始した
           console.log('Call started by:', data.starterId);
@@ -68,6 +84,11 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
             startedAt: new Date(),
             endedAt: undefined,
           });
+        } else if (data && data.started && data.starterId === user.uid) {
+          // 自分が通話を開始した場合
+          console.log('Call started by current user');
+        } else {
+          console.log('No active call detected');
         }
       });
     }

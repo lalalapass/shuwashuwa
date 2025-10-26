@@ -8,7 +8,7 @@ import {
   push,
   serverTimestamp 
 } from 'firebase/database';
-import { getDatabase } from 'firebase/database';
+import { realtimeDb } from '../firebase/config';
 import type { VideoCallSession, VideoCallSchedule } from '../types/api';
 
 // WebRTC ビデオ通話サービス
@@ -21,12 +21,9 @@ export class WebRTCService {
   private chatRoomId: string;
   private signalingRef: any = null;
 
-  private db: any;
-
   constructor(userId: string, chatRoomId: string) {
     this.userId = userId;
     this.chatRoomId = chatRoomId;
-    this.db = getDatabase();
   }
 
   // 通話開始
@@ -52,17 +49,17 @@ export class WebRTCService {
       };
 
       // Firebase Realtime Database にセッション保存
-      const sessionRef = push(ref(this.db, 'videoCallSessions'));
+      const sessionRef = push(ref(realtimeDb, 'videoCallSessions'));
       await set(sessionRef, sessionData);
 
       // シグナリング用のRealtime Database参照
-      this.signalingRef = ref(this.db, `calls/${this.callId}/signaling`);
+      this.signalingRef = ref(realtimeDb, `calls/${this.callId}/signaling`);
       
       // WebRTC ピアコネクション設定
       await this.setupPeerConnection();
 
       // 通話開始を通知
-      await set(ref(this.db, `calls/${this.callId}/status`), {
+      await set(ref(realtimeDb, `calls/${this.callId}/status`), {
         started: true,
         starterId: this.userId,
         timestamp: serverTimestamp(),
@@ -99,13 +96,13 @@ export class WebRTCService {
       this.callId = `call_${this.chatRoomId}`;
 
       // シグナリング用のRealtime Database参照
-      this.signalingRef = ref(this.db, `calls/${this.callId}/signaling`);
+      this.signalingRef = ref(realtimeDb, `calls/${this.callId}/signaling`);
       
       // WebRTC ピアコネクション設定
       await this.setupPeerConnection();
 
       // 参加を通知
-      await set(ref(this.db, `calls/${this.callId}/participants/${this.userId}`), {
+      await set(ref(realtimeDb, `calls/${this.callId}/participants/${this.userId}`), {
         joined: true,
         timestamp: serverTimestamp(),
       });
@@ -144,7 +141,7 @@ export class WebRTCService {
 
       // セッション更新
       if (this.callId) {
-        const sessionRef = ref(this.db, `videoCallSessions/${this.callId}`);
+        const sessionRef = ref(realtimeDb, `videoCallSessions/${this.callId}`);
         await set(sessionRef, {
           isActive: false,
           endedAt: serverTimestamp(),
@@ -193,7 +190,7 @@ export class WebRTCService {
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate && this.signalingRef) {
         console.log('Sending ICE candidate:', event.candidate);
-        set(ref(this.db, `${this.signalingRef.path}/iceCandidates/${this.userId}`), {
+        set(ref(realtimeDb, `${this.signalingRef.path}/iceCandidates/${this.userId}`), {
           candidate: event.candidate,
           timestamp: serverTimestamp(),
         });
@@ -242,7 +239,7 @@ export class WebRTCService {
         const answer = await this.peerConnection.createAnswer();
         await this.peerConnection.setLocalDescription(answer);
         
-        await set(ref(this.db, `${this.signalingRef.path}/answer`), {
+        await set(ref(realtimeDb, `${this.signalingRef.path}/answer`), {
           answer: answer,
           from: this.userId,
           timestamp: serverTimestamp(),
@@ -280,7 +277,7 @@ export class WebRTCService {
       await this.peerConnection.setLocalDescription(offer);
       
       if (this.signalingRef) {
-        await set(ref(this.db, `${this.signalingRef.path}/offer`), {
+        await set(ref(realtimeDb, `${this.signalingRef.path}/offer`), {
           offer: offer,
           from: this.userId,
           timestamp: serverTimestamp(),
@@ -331,7 +328,6 @@ export const videoCallScheduleApi = {
     description?: string;
     proposedAt: string;
   }): Promise<{ schedule: VideoCallSchedule }> => {
-    const db = getDatabase();
     const scheduleData = {
       chatRoomId: data.chatRoomId,
       proposerId: data.proposerId,
@@ -343,7 +339,7 @@ export const videoCallScheduleApi = {
       updatedAt: serverTimestamp(),
     };
 
-    const scheduleRef = push(ref(db, 'videoCallSchedules'));
+    const scheduleRef = push(ref(realtimeDb, 'videoCallSchedules'));
     await set(scheduleRef, scheduleData);
 
     const schedule: VideoCallSchedule = {
@@ -364,8 +360,7 @@ export const videoCallScheduleApi = {
 
   // スケジュール一覧取得
   getSchedules: async (chatRoomId: string): Promise<{ schedules: VideoCallSchedule[] }> => {
-    const db = getDatabase();
-    const schedulesRef = ref(db, 'videoCallSchedules');
+    const schedulesRef = ref(realtimeDb, 'videoCallSchedules');
     const snapshot = await get(schedulesRef);
     
     const schedules: VideoCallSchedule[] = [];
@@ -394,8 +389,7 @@ export const videoCallScheduleApi = {
 
   // スケジュール回答
   respondToSchedule: async (scheduleId: string, action: 'accept' | 'reject'): Promise<void> => {
-    const db = getDatabase();
-    const scheduleRef = ref(db, `videoCallSchedules/${scheduleId}`);
+    const scheduleRef = ref(realtimeDb, `videoCallSchedules/${scheduleId}`);
     await set(scheduleRef, {
       status: action === 'accept' ? 'accepted' : 'rejected',
       updatedAt: serverTimestamp(),

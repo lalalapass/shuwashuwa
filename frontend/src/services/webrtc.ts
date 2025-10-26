@@ -174,16 +174,31 @@ export class WebRTCService {
     // リモートストリーム処理
     this.peerConnection.ontrack = (event) => {
       console.log('Remote stream received:', event.streams[0]);
+      console.log('Remote stream tracks:', event.streams[0].getTracks());
       this.remoteStream = event.streams[0];
     };
 
     // 接続状態の監視
     this.peerConnection.onconnectionstatechange = () => {
       console.log('Connection state changed:', this.peerConnection?.connectionState);
+      if (this.peerConnection?.connectionState === 'connected') {
+        console.log('WebRTC connection established!');
+      }
     };
 
     this.peerConnection.oniceconnectionstatechange = () => {
       console.log('ICE connection state changed:', this.peerConnection?.iceConnectionState);
+      if (this.peerConnection?.iceConnectionState === 'connected') {
+        console.log('ICE connection established!');
+      }
+    };
+
+    this.peerConnection.onicegatheringstatechange = () => {
+      console.log('ICE gathering state changed:', this.peerConnection?.iceGatheringState);
+    };
+
+    this.peerConnection.onsignalingstatechange = () => {
+      console.log('Signaling state changed:', this.peerConnection?.signalingState);
     };
 
     // ICE候補処理
@@ -227,39 +242,67 @@ export class WebRTCService {
 
   // シグナリングデータ処理
   private async handleSignalingData(data: any): Promise<void> {
-    if (!this.peerConnection) return;
+    if (!this.peerConnection) {
+      console.log('No peer connection available for signaling data');
+      return;
+    }
 
     try {
       console.log('Handling signaling data:', data);
+      console.log('Current peer connection state:', this.peerConnection.connectionState);
+      console.log('Current ICE connection state:', this.peerConnection.iceConnectionState);
 
       // オファー処理
       if (data.offer && data.offer.from !== this.userId) {
         console.log('Processing offer from:', data.offer.from);
-        await this.peerConnection.setRemoteDescription(data.offer.offer);
-        const answer = await this.peerConnection.createAnswer();
-        await this.peerConnection.setLocalDescription(answer);
+        console.log('Offer data:', data.offer.offer);
         
-        await set(ref(realtimeDb, `${this.signalingRef.path}/answer`), {
-          answer: answer,
-          from: this.userId,
-          timestamp: serverTimestamp(),
-        });
-        console.log('Answer sent');
+        try {
+          await this.peerConnection.setRemoteDescription(data.offer.offer);
+          console.log('Remote description set successfully');
+          
+          const answer = await this.peerConnection.createAnswer();
+          console.log('Answer created:', answer);
+          
+          await this.peerConnection.setLocalDescription(answer);
+          console.log('Local description set successfully');
+          
+          await set(ref(realtimeDb, `${this.signalingRef.path}/answer`), {
+            answer: answer,
+            from: this.userId,
+            timestamp: serverTimestamp(),
+          });
+          console.log('Answer sent to database');
+        } catch (offerError) {
+          console.error('Error processing offer:', offerError);
+        }
       }
 
       // アンサー処理
       if (data.answer && data.answer.from !== this.userId) {
         console.log('Processing answer from:', data.answer.from);
-        await this.peerConnection.setRemoteDescription(data.answer.answer);
-        console.log('Answer processed');
+        console.log('Answer data:', data.answer.answer);
+        
+        try {
+          await this.peerConnection.setRemoteDescription(data.answer.answer);
+          console.log('Answer processed successfully');
+        } catch (answerError) {
+          console.error('Error processing answer:', answerError);
+        }
       }
 
       // ICE候補処理
       if (data.iceCandidates) {
+        console.log('Processing ICE candidates:', data.iceCandidates);
         for (const [userId, candidateData] of Object.entries(data.iceCandidates)) {
           if (userId !== this.userId && candidateData) {
-            console.log('Adding ICE candidate from:', userId);
-            await this.peerConnection.addIceCandidate((candidateData as any).candidate);
+            console.log('Adding ICE candidate from:', userId, candidateData);
+            try {
+              await this.peerConnection.addIceCandidate((candidateData as any).candidate);
+              console.log('ICE candidate added successfully');
+            } catch (iceError) {
+              console.error('Error adding ICE candidate:', iceError);
+            }
           }
         }
       }
@@ -270,19 +313,30 @@ export class WebRTCService {
 
   // オファー送信
   async sendOffer(): Promise<void> {
-    if (!this.peerConnection) return;
+    if (!this.peerConnection) {
+      console.log('No peer connection available for sending offer');
+      return;
+    }
 
     try {
+      console.log('Creating offer...');
       const offer = await this.peerConnection.createOffer();
+      console.log('Offer created:', offer);
+      
+      console.log('Setting local description...');
       await this.peerConnection.setLocalDescription(offer);
+      console.log('Local description set successfully');
       
       if (this.signalingRef) {
+        console.log('Sending offer to database:', this.signalingRef.path);
         await set(ref(realtimeDb, `${this.signalingRef.path}/offer`), {
           offer: offer,
           from: this.userId,
           timestamp: serverTimestamp(),
         });
-        console.log('Offer sent to:', this.signalingRef.path);
+        console.log('Offer sent to database successfully');
+      } else {
+        console.error('No signaling reference available');
       }
     } catch (error) {
       console.error('Failed to send offer:', error);

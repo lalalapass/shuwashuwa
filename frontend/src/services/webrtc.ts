@@ -20,6 +20,8 @@ export class WebRTCService {
   private userId: string;
   private chatRoomId: string;
   private signalingRef: any = null;
+  private processedOffers: Set<string> = new Set();
+  private processedAnswers: Set<string> = new Set();
 
   constructor(userId: string, chatRoomId: string) {
     this.userId = userId;
@@ -271,8 +273,22 @@ export class WebRTCService {
           return;
         }
         
+        // 重複チェック
+        const offerKey = `${data.offer.from}_${data.offer.timestamp}`;
+        if (this.processedOffers.has(offerKey)) {
+          console.log('Ignoring duplicate offer:', offerKey);
+          return;
+        }
+        
+        // WebRTCの状態をチェック
+        if (this.peerConnection.signalingState !== 'stable' && this.peerConnection.signalingState !== 'have-local-offer') {
+          console.log('Ignoring offer - wrong signaling state:', this.peerConnection.signalingState);
+          return;
+        }
+        
         console.log('Processing offer from:', data.offer.from);
         console.log('Offer data:', data.offer.offer);
+        console.log('Current signaling state:', this.peerConnection.signalingState);
         
         try {
           await this.peerConnection.setRemoteDescription(data.offer.offer);
@@ -291,6 +307,9 @@ export class WebRTCService {
             timestamp: serverTimestamp(),
           });
           console.log('Answer sent to database');
+          
+          // 処理済みオファーとして記録
+          this.processedOffers.add(offerKey);
         } catch (offerError) {
           console.error('Error processing offer:', offerError);
         }
@@ -311,12 +330,29 @@ export class WebRTCService {
           return;
         }
         
+        // 重複チェック
+        const answerKey = `${data.answer.from}_${data.answer.timestamp}`;
+        if (this.processedAnswers.has(answerKey)) {
+          console.log('Ignoring duplicate answer:', answerKey);
+          return;
+        }
+        
+        // WebRTCの状態をチェック
+        if (this.peerConnection.signalingState !== 'have-local-offer') {
+          console.log('Ignoring answer - wrong signaling state:', this.peerConnection.signalingState);
+          return;
+        }
+        
         console.log('Processing answer from:', data.answer.from);
         console.log('Answer data:', data.answer.answer);
+        console.log('Current signaling state:', this.peerConnection.signalingState);
         
         try {
           await this.peerConnection.setRemoteDescription(data.answer.answer);
           console.log('Answer processed successfully');
+          
+          // 処理済みアンサーとして記録
+          this.processedAnswers.add(answerKey);
         } catch (answerError) {
           console.error('Error processing answer:', answerError);
         }

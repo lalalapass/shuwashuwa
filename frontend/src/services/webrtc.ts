@@ -179,13 +179,6 @@ export class WebRTCService {
         }
       });
       
-      // アンドロイド用デバッグ（一時的）
-      if (this.isCaller) {
-        alert(`Caller: Remote stream received with ${stream.getTracks().length} tracks`);
-      } else {
-        alert(`Callee: Remote stream received with ${stream.getTracks().length} tracks`);
-      }
-      
       this.remoteStream = stream;
     };
 

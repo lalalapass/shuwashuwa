@@ -153,7 +153,20 @@ export class WebRTCService {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        { urls: 'stun:stun.ekiga.net' },
+        { urls: 'stun:stun.ideasip.com' },
+        { urls: 'stun:stun.schlund.de' },
+        { urls: 'stun:stun.stunprotocol.org:3478' },
+        { urls: 'stun:stun.voiparound.com' },
+        { urls: 'stun:stun.voipbuster.com' },
+        { urls: 'stun:stun.voipstunt.com' },
+        { urls: 'stun:stun.voxgratia.org' },
+        { urls: 'stun:stun.xten.com' },
       ],
+      iceCandidatePoolSize: 10,
     });
 
     // ローカルストリームをピアコネクションに追加
@@ -195,6 +208,14 @@ export class WebRTCService {
         console.log('❌ WebRTC connection failed - attempting to restart ICE');
         // ICE接続を再開
         this.peerConnection?.restartIce();
+        
+        // 5秒後に接続状態を再チェック
+        setTimeout(() => {
+          if (this.peerConnection?.connectionState === 'failed') {
+            console.log('🔄 Attempting to recreate peer connection...');
+            this.recreatePeerConnection();
+          }
+        }, 5000);
       } else if (state === 'disconnected') {
         console.log('❌ WebRTC connection disconnected');
       }
@@ -313,6 +334,26 @@ export class WebRTCService {
   // ルームID取得
   getRoomId(): string | null {
     return this.roomId;
+  }
+
+  // ピアコネクション再作成
+  private async recreatePeerConnection(): Promise<void> {
+    if (!this.localStream || !this.roomId) return;
+    
+    console.log('Recreating peer connection...');
+    
+    // 古いピアコネクションを閉じる
+    if (this.peerConnection) {
+      this.peerConnection.close();
+    }
+    
+    // 新しいピアコネクションを作成
+    await this.setupPeerConnection();
+    
+    // ICE候補収集を再開
+    this.collectIceCandidates();
+    
+    console.log('Peer connection recreated');
   }
 
   // クリーンアップ

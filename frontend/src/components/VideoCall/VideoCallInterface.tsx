@@ -115,9 +115,6 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
         setLocalStream(localStream);
       }
 
-      // オファー送信
-      await webrtcServiceRef.current.sendOffer();
-
       // リモートストリーム監視（改善版）
       const checkRemoteStream = () => {
         const remoteStream = webrtcServiceRef.current?.getRemoteStream();

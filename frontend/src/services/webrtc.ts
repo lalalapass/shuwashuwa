@@ -68,6 +68,9 @@ export class WebRTCService {
       // シグナリング監視を開始
       this.startSignalingListener();
 
+      // オファー送信
+      await this.sendOffer();
+
       return {
         id: sessionRef.key!,
         chatRoomId: this.chatRoomId,
@@ -205,7 +208,8 @@ export class WebRTCService {
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate && this.signalingRef) {
         console.log('Sending ICE candidate:', event.candidate);
-        set(ref(realtimeDb, `${this.signalingRef.path}/iceCandidates/${this.userId}`), {
+        const iceCandidatePath = `calls/${this.callId}/signaling/iceCandidates/${this.userId}`;
+        set(ref(realtimeDb, iceCandidatePath), {
           candidate: event.candidate,
           timestamp: serverTimestamp(),
         });
@@ -267,7 +271,8 @@ export class WebRTCService {
           await this.peerConnection.setLocalDescription(answer);
           console.log('Local description set successfully');
           
-          await set(ref(realtimeDb, `${this.signalingRef.path}/answer`), {
+          const answerPath = `calls/${this.callId}/signaling/answer`;
+          await set(ref(realtimeDb, answerPath), {
             answer: answer,
             from: this.userId,
             timestamp: serverTimestamp(),
@@ -328,8 +333,9 @@ export class WebRTCService {
       console.log('Local description set successfully');
       
       if (this.signalingRef) {
-        console.log('Sending offer to database:', this.signalingRef.path);
-        await set(ref(realtimeDb, `${this.signalingRef.path}/offer`), {
+        const offerPath = `calls/${this.callId}/signaling/offer`;
+        console.log('Sending offer to database:', offerPath);
+        await set(ref(realtimeDb, offerPath), {
           offer: offer,
           from: this.userId,
           timestamp: serverTimestamp(),

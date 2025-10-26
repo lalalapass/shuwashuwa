@@ -168,7 +168,25 @@ export class WebRTCService {
       console.log('Remote stream received:', event.streams[0]);
       console.log('Remote stream tracks:', event.streams[0].getTracks());
       console.log('Is caller:', this.isCaller);
-      this.remoteStream = event.streams[0];
+      
+      const stream = event.streams[0];
+      
+      // ビデオトラックのミュート状態を解除
+      stream.getTracks().forEach(track => {
+        if (track.kind === 'video' && track.muted) {
+          console.log('Unmuting video track:', track.id);
+          track.enabled = true;
+        }
+      });
+      
+      // アンドロイド用デバッグ（一時的）
+      if (this.isCaller) {
+        alert(`Caller: Remote stream received with ${stream.getTracks().length} tracks`);
+      } else {
+        alert(`Callee: Remote stream received with ${stream.getTracks().length} tracks`);
+      }
+      
+      this.remoteStream = stream;
     };
 
     // 接続状態の監視
@@ -180,8 +198,12 @@ export class WebRTCService {
         console.log('✅ WebRTC connection established!');
       } else if (state === 'connecting') {
         console.log('🔄 WebRTC connecting...');
-      } else if (state === 'failed' || state === 'disconnected') {
-        console.log('❌ WebRTC connection failed or disconnected');
+      } else if (state === 'failed') {
+        console.log('❌ WebRTC connection failed - attempting to restart ICE');
+        // ICE接続を再開
+        this.peerConnection?.restartIce();
+      } else if (state === 'disconnected') {
+        console.log('❌ WebRTC connection disconnected');
       }
     };
   }

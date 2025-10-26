@@ -124,13 +124,20 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
       }
 
       // リモートストリーム監視（改善版）
+      let streamCheckCount = 0;
+      const maxStreamChecks = 30; // 30秒間試行
+      
       const checkRemoteStream = () => {
         const remoteStream = webrtcServiceRef.current?.getRemoteStream();
         if (remoteStream && remoteStream.getTracks().length > 0) {
           setRemoteStream(remoteStream);
           console.log('✅ Remote stream set in UI with', remoteStream.getTracks().length, 'tracks');
-        } else {
+        } else if (streamCheckCount < maxStreamChecks) {
+          streamCheckCount++;
+          console.log(`Checking remote stream... (${streamCheckCount}/${maxStreamChecks})`);
           setTimeout(checkRemoteStream, 1000);
+        } else {
+          console.log('❌ Remote stream not received after 30 seconds');
         }
       };
       checkRemoteStream();
@@ -164,13 +171,20 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
       }
 
       // リモートストリーム監視（改善版）
+      let streamCheckCount = 0;
+      const maxStreamChecks = 30; // 30秒間試行
+      
       const checkRemoteStream = () => {
         const remoteStream = webrtcServiceRef.current?.getRemoteStream();
         if (remoteStream && remoteStream.getTracks().length > 0) {
           setRemoteStream(remoteStream);
           console.log('✅ Remote stream set in UI with', remoteStream.getTracks().length, 'tracks');
-        } else {
+        } else if (streamCheckCount < maxStreamChecks) {
+          streamCheckCount++;
+          console.log(`Checking remote stream... (${streamCheckCount}/${maxStreamChecks})`);
           setTimeout(checkRemoteStream, 1000);
+        } else {
+          console.log('❌ Remote stream not received after 30 seconds');
         }
       };
       checkRemoteStream();

@@ -166,6 +166,8 @@ export class WebRTCService {
     // リモートストリーム処理
     this.peerConnection.ontrack = (event) => {
       console.log('Remote stream received:', event.streams[0]);
+      console.log('Remote stream tracks:', event.streams[0].getTracks());
+      console.log('Is caller:', this.isCaller);
       this.remoteStream = event.streams[0];
     };
 
@@ -204,9 +206,11 @@ export class WebRTCService {
         try {
           const offer = new RTCSessionDescription(data.offer);
           await this.peerConnection.setRemoteDescription(offer);
+          console.log('Remote description set for callee');
           
           const answer = await this.peerConnection.createAnswer();
           await this.peerConnection.setLocalDescription(answer);
+          console.log('Answer created and set locally for callee');
           
           // アンサーを送信
           await updateDoc(roomRef, {
@@ -216,7 +220,7 @@ export class WebRTCService {
             }
           });
           
-          console.log('Answer sent');
+          console.log('Answer sent to database');
         } catch (error) {
           console.error('Error processing offer:', error);
         }
@@ -228,7 +232,7 @@ export class WebRTCService {
         try {
           const answer = new RTCSessionDescription(data.answer);
           await this.peerConnection.setRemoteDescription(answer);
-          console.log('Answer processed successfully');
+          console.log('Answer processed successfully by caller');
         } catch (error) {
           console.error('Error processing answer:', error);
         }

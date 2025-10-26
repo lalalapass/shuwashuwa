@@ -232,8 +232,9 @@ export class WebRTCService {
         });
       } else if (event.candidate === null) {
         console.log('✅ ICE gathering completed');
-        // ICE gathering完了時にリモートストリームを確認
-        setTimeout(() => this.checkRemoteStream(), 1000);
+        // ICE gathering完了時に接続状態を強制チェック
+        setTimeout(() => this.forceConnectionCheck(), 1000);
+        setTimeout(() => this.checkRemoteStream(), 2000);
       }
     };
 
@@ -257,19 +258,25 @@ export class WebRTCService {
     // シグナリングデータの監視（一度だけ処理）
     let hasProcessedOffer = false;
     let hasProcessedAnswer = false;
+    let lastOfferTimestamp = 0;
+    let lastAnswerTimestamp = 0;
     
     onValue(this.signalingRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        // オファー処理（一度だけ）
-        if (data.offer && !hasProcessedOffer) {
+        // オファー処理（一度だけ、タイムスタンプで重複チェック）
+        if (data.offer && !hasProcessedOffer && data.offer.timestamp > lastOfferTimestamp) {
           hasProcessedOffer = true;
+          lastOfferTimestamp = data.offer.timestamp;
+          console.log('Processing offer (first time)');
           this.handleSignalingData({ offer: data.offer });
         }
         
-        // アンサー処理（一度だけ）
-        if (data.answer && !hasProcessedAnswer) {
+        // アンサー処理（一度だけ、タイムスタンプで重複チェック）
+        if (data.answer && !hasProcessedAnswer && data.answer.timestamp > lastAnswerTimestamp) {
           hasProcessedAnswer = true;
+          lastAnswerTimestamp = data.answer.timestamp;
+          console.log('Processing answer (first time)');
           this.handleSignalingData({ answer: data.answer });
         }
         
@@ -435,6 +442,23 @@ export class WebRTCService {
           this.remoteStream = stream;
           console.log('Remote stream updated from receiver');
         }
+      }
+    }
+  }
+
+  // 接続確立の強制試行
+  private forceConnectionCheck(): void {
+    if (this.peerConnection) {
+      console.log('Force checking connection state...');
+      console.log('Connection state:', this.peerConnection.connectionState);
+      console.log('ICE connection state:', this.peerConnection.iceConnectionState);
+      console.log('Signaling state:', this.peerConnection.signalingState);
+      
+      // 接続が確立されている場合の処理
+      if (this.peerConnection.connectionState === 'connected' || 
+          this.peerConnection.iceConnectionState === 'connected') {
+        console.log('✅ Connection is established!');
+        this.checkRemoteStream();
       }
     }
   }

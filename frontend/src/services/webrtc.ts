@@ -193,7 +193,9 @@ export class WebRTCService {
       if (state === 'connected') {
         console.log('✅ WebRTC connection established!');
         // 接続確立時にリモートストリームを確認
-        this.checkRemoteStream();
+        setTimeout(() => this.checkRemoteStream(), 500);
+      } else if (state === 'connecting') {
+        console.log('🔄 WebRTC connecting...');
       } else if (state === 'failed' || state === 'disconnected') {
         console.log('❌ WebRTC connection failed or disconnected');
       }
@@ -252,11 +254,29 @@ export class WebRTCService {
 
     console.log('Starting signaling listener for:', this.callId);
     
-    // シグナリングデータの監視
+    // シグナリングデータの監視（一度だけ処理）
+    let hasProcessedOffer = false;
+    let hasProcessedAnswer = false;
+    
     onValue(this.signalingRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        this.handleSignalingData(data);
+        // オファー処理（一度だけ）
+        if (data.offer && !hasProcessedOffer) {
+          hasProcessedOffer = true;
+          this.handleSignalingData({ offer: data.offer });
+        }
+        
+        // アンサー処理（一度だけ）
+        if (data.answer && !hasProcessedAnswer) {
+          hasProcessedAnswer = true;
+          this.handleSignalingData({ answer: data.answer });
+        }
+        
+        // ICE候補は継続的に処理
+        if (data.iceCandidates) {
+          this.handleSignalingData({ iceCandidates: data.iceCandidates });
+        }
       }
     });
   }

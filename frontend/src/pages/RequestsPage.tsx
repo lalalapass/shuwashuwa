@@ -3,12 +3,14 @@ import { friendRequestsFirestoreApi } from '../services/firestore';
 import { useAuth } from '../context/AuthContext';
 import RequestCard from '../components/Requests/RequestCard';
 import type { FriendRequest } from '../types/api';
+import { useNotificationCounts } from '../hooks/useNotificationCounts';
 
 const RequestsPage: React.FC = () => {
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [handledRequests, setHandledRequests] = useState<Set<string>>(new Set());
   const { user: currentUser, loading: authLoading } = useAuth();
+  const { refreshCounts } = useNotificationCounts();
 
   useEffect(() => {
     if (!authLoading && currentUser) {
@@ -45,6 +47,9 @@ const RequestsPage: React.FC = () => {
     
     // Remove the handled request from the list
     setRequests((prev: FriendRequest[]) => prev.filter(req => req.id !== requestId));
+    
+    // 通知カウントを更新
+    refreshCounts();
   };
 
   if (loading) {

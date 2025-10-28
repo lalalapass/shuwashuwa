@@ -41,6 +41,7 @@ export interface ChatRoom {
   otherUsername?: string;
   lastMessage?: string;
   lastMessageAt?: string;
+  unreadCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,6 +54,7 @@ export interface ChatMessage {
   messageText?: string;
   videoUrl?: string;
   createdAt?: Date;
+  readBy?: { [userId: string]: boolean }; // 各ユーザーの既読フラグ
 }
 
 export interface AuthResponse {

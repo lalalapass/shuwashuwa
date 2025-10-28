@@ -42,6 +42,16 @@ const ChatRoomList: React.FC<ChatRoomListProps> = ({ rooms, selectedRoomId, onRo
       : message;
   };
 
+  const UnreadBadge: React.FC<{ count: number }> = ({ count }) => {
+    if (count === 0) return null;
+    
+    return (
+      <span className="unread-badge">
+        {count > 99 ? '99+' : count}
+      </span>
+    );
+  };
+
   return (
     <div className="chat-room-list">
       <h3>チャット一覧</h3>
@@ -61,11 +71,14 @@ const ChatRoomList: React.FC<ChatRoomListProps> = ({ rooms, selectedRoomId, onRo
               <div className="room-header">
                 <div className="room-user-info">
                   <strong className="room-username">{room.otherUsername}</strong>
-                  {room.lastMessageAt && (
-                    <span className="last-message-time">
-                      {formatDate(room.lastMessageAt)}
-                    </span>
-                  )}
+                  <div className="room-meta">
+                    {room.lastMessageAt && (
+                      <span className="last-message-time">
+                        {formatDate(room.lastMessageAt)}
+                      </span>
+                    )}
+                    <UnreadBadge count={room.unreadCount || 0} />
+                  </div>
                 </div>
               </div>
               <div className="room-content">

@@ -465,6 +465,14 @@ export const chatFirestoreApi = {
           console.error('Failed to get latest message:', error);
         }
         
+        // 未読メッセージ数を取得
+        let unreadCount = 0;
+        try {
+          unreadCount = await chatFirestoreApi.getUnreadMessageCount(docSnapshot.id, userId);
+        } catch (error) {
+          console.error('Failed to get unread count for room:', docSnapshot.id, error);
+        }
+
         rooms.push({
           id: docSnapshot.id,
           user1Id: data.user1Id,
@@ -472,6 +480,7 @@ export const chatFirestoreApi = {
           otherUsername: otherUsername,
           lastMessage: lastMessage,
           lastMessageAt: lastMessageAt,
+          unreadCount: unreadCount,
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date(),
         });
@@ -515,6 +524,14 @@ export const chatFirestoreApi = {
           console.error('Failed to get latest message:', error);
         }
         
+        // 未読メッセージ数を取得
+        let unreadCount = 0;
+        try {
+          unreadCount = await chatFirestoreApi.getUnreadMessageCount(docSnapshot.id, userId);
+        } catch (error) {
+          console.error('Failed to get unread count for room:', docSnapshot.id, error);
+        }
+        
         rooms.push({
           id: docSnapshot.id,
           user1Id: data.user1Id,
@@ -522,6 +539,7 @@ export const chatFirestoreApi = {
           otherUsername: otherUsername,
           lastMessage: lastMessage,
           lastMessageAt: lastMessageAt,
+          unreadCount: unreadCount,
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date(),
         });
@@ -536,51 +554,6 @@ export const chatFirestoreApi = {
     });
     
     return { rooms };
-  },
-
-  // メッセージ送信
-  sendMessage: async (roomId: string, data: {
-    senderId: string;
-    messageText?: string;
-    videoUrl?: string;
-  }): Promise<{ message: ChatMessage }> => {
-    const messageData: any = {
-      senderId: data.senderId,
-      createdAt: serverTimestamp(),
-    };
-    
-    // undefined の場合はフィールドを追加しない
-    if (data.messageText !== undefined) {
-      messageData.messageText = data.messageText;
-    }
-    if (data.videoUrl !== undefined) {
-      messageData.videoUrl = data.videoUrl;
-    }
-    
-    const docRef = await addDoc(collection(db, 'chatRooms', roomId, 'messages'), messageData);
-    
-    // 送信者のユーザー名を取得
-    let senderUsername = 'Unknown User';
-    try {
-      const senderDoc = await getDoc(doc(db, 'users', data.senderId));
-      if (senderDoc.exists()) {
-        senderUsername = senderDoc.data().username || 'Unknown User';
-      }
-    } catch (error) {
-      console.error('Failed to get sender info:', error);
-    }
-    
-    const message: ChatMessage = {
-      id: docRef.id,
-      chatRoomId: roomId,
-      senderId: data.senderId,
-      senderUsername: senderUsername,
-      messageText: data.messageText,
-      videoUrl: data.videoUrl,
-      createdAt: new Date(),
-    };
-    
-    return { message };
   },
 
   // メッセージ一覧取得
@@ -615,6 +588,7 @@ export const chatFirestoreApi = {
         messageText: data.messageText,
         videoUrl: data.videoUrl,
         createdAt: data.createdAt?.toDate() || new Date(),
+        readBy: data.readBy || {},
       });
     }
     
@@ -653,11 +627,119 @@ export const chatFirestoreApi = {
           messageText: data.messageText,
           videoUrl: data.videoUrl,
           createdAt: data.createdAt?.toDate() || new Date(),
+          readBy: data.readBy || {},
         });
       }
       
       callback(messages);
     });
+  },
+
+  // 未読メッセージ数を取得（既読フラグベース）
+  getUnreadMessageCount: async (roomId: string, currentUserId: string): Promise<number> => {
+    try {
+      const q = query(
+        collection(db, 'chatRooms', roomId, 'messages'),
+        orderBy('createdAt', 'desc')
+      );
+
+      const snapshot = await getDocs(q);
+      let unreadCount = 0;
+
+      for (const docSnapshot of snapshot.docs) {
+        const data = docSnapshot.data();
+        // 自分以外が送信したメッセージで、かつ未読のものをカウント
+        if (data.senderId !== currentUserId) {
+          const readBy = data.readBy || {};
+          if (!readBy[currentUserId]) {
+            unreadCount++;
+          }
+        }
+      }
+
+      return unreadCount;
+    } catch (error) {
+      console.error('Failed to get unread message count:', error);
+      return 0;
+    }
+  },
+
+  // チャットルームの全メッセージを既読にする
+  markAllMessagesAsRead: async (roomId: string, userId: string): Promise<void> => {
+    try {
+      const q = query(
+        collection(db, 'chatRooms', roomId, 'messages'),
+        orderBy('createdAt', 'desc')
+      );
+
+      const snapshot = await getDocs(q);
+      const batch = [];
+
+      for (const docSnapshot of snapshot.docs) {
+        const data = docSnapshot.data();
+        const readBy = data.readBy || {};
+        
+        // 既に既読でない場合のみ更新
+        if (!readBy[userId]) {
+          readBy[userId] = true;
+          batch.push(updateDoc(docSnapshot.ref, { readBy }));
+        }
+      }
+
+      // バッチで一括更新
+      if (batch.length > 0) {
+        await Promise.all(batch);
+      }
+    } catch (error) {
+      console.error('Failed to mark messages as read:', error);
+    }
+  },
+
+  // メッセージ送信時に既読フラグを初期化
+  sendMessage: async (roomId: string, data: {
+    senderId: string;
+    messageText?: string;
+    videoUrl?: string;
+  }): Promise<{ message: ChatMessage }> => {
+    const messageData: any = {
+      senderId: data.senderId,
+      createdAt: serverTimestamp(),
+      readBy: { [data.senderId]: true }, // 送信者は既読
+    };
+    
+    // undefined の場合はフィールドを追加しない
+    if (data.messageText !== undefined) {
+      messageData.messageText = data.messageText;
+    }
+    if (data.videoUrl !== undefined) {
+      messageData.videoUrl = data.videoUrl;
+    }
+    
+    const docRef = await addDoc(collection(db, 'chatRooms', roomId, 'messages'), messageData);
+    
+    // 送信者のユーザー名を取得
+    let senderUsername = 'Unknown User';
+    try {
+      const senderDoc = await getDoc(doc(db, 'users', data.senderId));
+      if (senderDoc.exists()) {
+        senderUsername = senderDoc.data().username || 'Unknown User';
+      }
+    } catch (error) {
+      console.error('Failed to get sender info:', error);
+    }
+    
+    const message: ChatMessage = {
+      id: docRef.id,
+      chatRoomId: roomId,
+      senderId: data.senderId,
+      senderUsername: senderUsername,
+      messageText: data.messageText,
+      videoUrl: data.videoUrl,
+      createdAt: new Date(),
+      readBy: { [data.senderId]: true },
+    };
+    
+    return { message };
   },
 };
 

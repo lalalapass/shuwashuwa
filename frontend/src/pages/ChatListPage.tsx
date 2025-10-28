@@ -4,11 +4,13 @@ import { chatFirestoreApi } from '../services/firestore';
 import { useAuth } from '../context/AuthContext';
 import ChatRoomList from '../components/Chat/ChatRoomList';
 import type { ChatRoom } from '../types/api';
+import { useNotificationCounts } from '../hooks/useNotificationCounts';
 
 const ChatListPage: React.FC = () => {
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const { user: currentUser } = useAuth();
+  const { refreshCounts } = useNotificationCounts();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,6 +38,8 @@ const ChatListPage: React.FC = () => {
 
   const handleRoomSelect = (roomId: string) => {
     navigate(`/chat/${roomId}`);
+    // チャットルームを選択した時に通知カウントを更新
+    refreshCounts();
   };
 
   if (!currentUser) {

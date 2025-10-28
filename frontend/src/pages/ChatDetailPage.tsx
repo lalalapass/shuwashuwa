@@ -6,6 +6,7 @@ import MessageList from '../components/Chat/MessageList';
 import MessageInput from '../components/Chat/MessageInput';
 import ScheduleManager from '../components/VideoCall/ScheduleManager';
 import VideoCallInterface from '../components/VideoCall/VideoCallInterface';
+import { useNotificationCounts } from '../hooks/useNotificationCounts';
 import type { ChatRoom, ChatMessage } from '../types/api';
 
 const ChatDetailPage: React.FC = () => {
@@ -18,10 +19,12 @@ const ChatDetailPage: React.FC = () => {
   const [sending, setSending] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'schedule' | 'video'>('chat');
   const { user: currentUser } = useAuth();
+  const { refreshCounts } = useNotificationCounts();
+  const [refreshTimeout, setRefreshTimeout] = useState<number | null>(null);
 
   useEffect(() => {
     if (roomId) {
-      loadRoomAndMessages(roomId);
+      loadRoomInfo(roomId);
     }
   }, [roomId]);
 
@@ -31,22 +34,36 @@ const ChatDetailPage: React.FC = () => {
 
     const unsubscribe = chatFirestoreApi.subscribeToMessages(roomId, (newMessages) => {
       setMessages(newMessages);
+      setMessagesLoading(false);
+      
+      // デバウンスして通知カウントを更新（500ms後に実行）
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+      }
+      const timeout = setTimeout(() => {
+        refreshCounts();
+      }, 500);
+      setRefreshTimeout(timeout);
     });
 
     return () => {
       unsubscribe();
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+      }
     };
   }, [roomId]);
 
-  const loadRoomAndMessages = async (roomId: string) => {
+  const loadRoomInfo = async (roomId: string) => {
     if (!currentUser) {
       navigate('/chat');
       return;
     }
     
     setLoading(true);
+    setMessagesLoading(true);
     try {
-      // Load room info
+      // Load room info only
       const roomsResponse = await chatFirestoreApi.getRooms(currentUser.uid);
       const foundRoom = roomsResponse.rooms?.find(r => r.id === roomId);
       
@@ -57,16 +74,13 @@ const ChatDetailPage: React.FC = () => {
       
       setRoom(foundRoom);
       
-      // Load messages
-      setMessagesLoading(true);
-      const messagesResponse = await chatFirestoreApi.getMessages(roomId);
-      setMessages(messagesResponse.messages || []);
+      // チャットルームに訪問した時に全メッセージを既読にする
+      await chatFirestoreApi.markAllMessagesAsRead(roomId, currentUser.uid);
     } catch (error) {
-      console.error('Failed to load room and messages:', error);
+      console.error('Failed to load room info:', error);
       navigate('/chat');
     } finally {
       setLoading(false);
-      setMessagesLoading(false);
     }
   };
 

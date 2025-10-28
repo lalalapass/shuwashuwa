@@ -1,12 +1,24 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useNotificationCounts } from '../../hooks/useNotificationCounts';
 
 const Navigation: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
+  const { counts } = useNotificationCounts();
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
+
+  const NotificationBadge: React.FC<{ count: number }> = ({ count }) => {
+    if (count === 0) return null;
+    
+    return (
+      <span className="notification-badge">
+        {count > 99 ? '99+' : count}
+      </span>
+    );
+  };
 
   return (
     <nav className="navigation">
@@ -25,9 +37,11 @@ const Navigation: React.FC = () => {
               </Link>
               <Link to="/requests" className={isActive('/requests') ? 'active' : ''}>
                 リクエスト
+                <NotificationBadge count={counts.pendingRequests} />
               </Link>
               <Link to="/chat" className={isActive('/chat') ? 'active' : ''}>
                 チャット
+                <NotificationBadge count={counts.unreadChats} />
               </Link>
               <Link to="/profile" className={isActive('/profile') ? 'active' : ''}>
                 プロフィール

@@ -198,6 +198,7 @@ const ChatDetailPage: React.FC = () => {
           {activeTab === 'video' && (
             <VideoCallInterface
               chatRoomId={room.id}
+              activeTab={activeTab}
               onCallEnd={() => {
                 // Optionally switch back to chat tab
                 setActiveTab('chat');

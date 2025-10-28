@@ -33,12 +33,13 @@ export const useNotificationCounts = () => {
 
     setLoading(true);
     try {
-      // 未対応のリクエスト数を取得
-      const requestsResponse = await friendRequestsFirestoreApi.getRequests(currentUser.uid);
-      const pendingRequestsCount = requestsResponse.requests.length;
+      // バッチ読み取り: 友達リクエストとチャットルームを並列で取得
+      const [requestsResponse, chatResponse] = await Promise.all([
+        friendRequestsFirestoreApi.getRequests(currentUser.uid),
+        chatFirestoreApi.getRooms(currentUser.uid)
+      ]);
 
-      // チャットルーム一覧を取得し、各ルームのunreadCountの合計を計算
-      const chatResponse = await chatFirestoreApi.getRooms(currentUser.uid);
+      const pendingRequestsCount = requestsResponse.requests.length;
       const unreadChatsCount = chatResponse.rooms.reduce((total, room) => {
         return total + (room.unreadCount || 0);
       }, 0);

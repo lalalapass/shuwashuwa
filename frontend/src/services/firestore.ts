@@ -204,7 +204,7 @@ export const usersFirestoreApi = {
 
 // Posts API
 export const postsFirestoreApi = {
-  // 投稿一覧取得
+  // 投稿一覧取得（最適化版）
   getPosts: async (): Promise<{ posts: Post[] }> => {
     const q = query(
       collection(db, 'posts'),
@@ -215,12 +215,17 @@ export const postsFirestoreApi = {
     const snapshot = await getDocs(q);
     const posts: Post[] = [];
     
+    if (snapshot.empty) {
+      return { posts: [] };
+    }
+    
     // ユーザーIDを収集
     const userIds = snapshot.docs.map(doc => doc.data().userId).filter(Boolean);
     
-    // ユーザー情報をバッチで取得
+    // バッチ読み取り: ユーザー情報を並列で取得
     const users = await getUsersBatch(userIds);
     
+    // 投稿データを構築
     for (const docSnapshot of snapshot.docs) {
       const data = docSnapshot.data();
       const user = users.get(data.userId);
@@ -360,7 +365,7 @@ export const friendRequestsFirestoreApi = {
     return { request };
   },
 
-  // 友達リクエスト一覧取得（受信したリクエスト）
+  // 友達リクエスト一覧取得（受信したリクエスト）- 最適化版
   getRequests: async (userId: string): Promise<{ requests: FriendRequest[] }> => {
     const q = query(
       collection(db, 'friendRequests'),
@@ -372,19 +377,20 @@ export const friendRequestsFirestoreApi = {
     const snapshot = await getDocs(q);
     const requests: FriendRequest[] = [];
     
+    if (snapshot.empty) {
+      return { requests: [] };
+    }
+    
+    // 送信者IDを収集
+    const senderIds = snapshot.docs.map(doc => doc.data().senderId).filter(Boolean);
+    
+    // バッチ読み取り: 送信者のユーザー情報を並列で取得
+    const users = await getUsersBatch(senderIds);
+    
     for (const docSnapshot of snapshot.docs) {
       const data = docSnapshot.data();
-      
-      // 送信者のユーザー情報を取得
-      let senderUsername = 'Unknown User';
-      try {
-        const senderDoc = await getDoc(doc(db, 'users', data.senderId));
-        if (senderDoc.exists()) {
-          senderUsername = senderDoc.data().username || 'Unknown User';
-        }
-      } catch (error) {
-        console.error('Failed to get sender info:', error);
-      }
+      const user = users.get(data.senderId);
+      const senderUsername = user?.username || 'Unknown User';
       
       requests.push({
         id: docSnapshot.id,
@@ -401,7 +407,7 @@ export const friendRequestsFirestoreApi = {
     return { requests };
   },
 
-  // 送信した友達リクエスト一覧取得
+  // 送信した友達リクエスト一覧取得 - 最適化版
   getSentRequests: async (userId: string): Promise<{ requests: FriendRequest[] }> => {
     const q = query(
       collection(db, 'friendRequests'),
@@ -412,19 +418,20 @@ export const friendRequestsFirestoreApi = {
     const snapshot = await getDocs(q);
     const requests: FriendRequest[] = [];
     
+    if (snapshot.empty) {
+      return { requests: [] };
+    }
+    
+    // 受信者IDを収集
+    const receiverIds = snapshot.docs.map(doc => doc.data().receiverId).filter(Boolean);
+    
+    // バッチ読み取り: 受信者のユーザー情報を並列で取得
+    const users = await getUsersBatch(receiverIds);
+    
     for (const docSnapshot of snapshot.docs) {
       const data = docSnapshot.data();
-      
-      // 受信者のユーザー情報を取得
-      let receiverUsername = 'Unknown User';
-      try {
-        const receiverDoc = await getDoc(doc(db, 'users', data.receiverId));
-        if (receiverDoc.exists()) {
-          receiverUsername = receiverDoc.data().username || 'Unknown User';
-        }
-      } catch (error) {
-        console.error('Failed to get receiver info:', error);
-      }
+      const user = users.get(data.receiverId);
+      const receiverUsername = user?.username || 'Unknown User';
       
       requests.push({
         id: docSnapshot.id,
@@ -555,37 +562,45 @@ export const chatFirestoreApi = {
     // ユーザー情報をバッチで取得
     const users = await getUsersBatch(otherUserIds);
     
-    // 各ルームの情報を並列で取得
+    // バッチ読み取り: 各ルームの最新メッセージと未読数を並列で取得
     const roomPromises = allRoomData.map(async (roomInfo) => {
       const { docSnapshot, data, otherUserId } = roomInfo;
       const user = users.get(otherUserId);
       const otherUsername = user?.username || 'Unknown User';
       
-      // 最新メッセージを取得
+      // 最新メッセージと未読数を並列で取得
+      const [messagesSnapshot, unreadCount] = await Promise.all([
+        // 最新メッセージを取得
+        (async () => {
+          try {
+            const messagesQuery = query(
+              collection(db, 'chatRooms', docSnapshot.id, 'messages'),
+              orderBy('createdAt', 'desc'),
+              limit(1)
+            );
+            return await getDocs(messagesQuery);
+          } catch (error) {
+            console.error('Failed to get latest message:', error);
+            return { empty: true, docs: [] };
+          }
+        })(),
+        // 未読メッセージ数を取得
+        (async () => {
+          try {
+            return await chatFirestoreApi.getUnreadMessageCount(docSnapshot.id, userId);
+          } catch (error) {
+            console.error('Failed to get unread count for room:', docSnapshot.id, error);
+            return 0;
+          }
+        })()
+      ]);
+      
       let lastMessage = '';
       let lastMessageAt = '';
-      try {
-        const messagesQuery = query(
-          collection(db, 'chatRooms', docSnapshot.id, 'messages'),
-          orderBy('createdAt', 'desc'),
-          limit(1)
-        );
-        const messagesSnapshot = await getDocs(messagesQuery);
-        if (!messagesSnapshot.empty) {
-          const latestMessage = messagesSnapshot.docs[0].data();
-          lastMessage = latestMessage.messageText || '';
-          lastMessageAt = latestMessage.createdAt?.toDate()?.toISOString() || '';
-        }
-      } catch (error) {
-        console.error('Failed to get latest message:', error);
-      }
-      
-      // 未読メッセージ数を取得
-      let unreadCount = 0;
-      try {
-        unreadCount = await chatFirestoreApi.getUnreadMessageCount(docSnapshot.id, userId);
-      } catch (error) {
-        console.error('Failed to get unread count for room:', docSnapshot.id, error);
+      if (!messagesSnapshot.empty) {
+        const latestMessage = messagesSnapshot.docs[0].data();
+        lastMessage = latestMessage.messageText || '';
+        lastMessageAt = latestMessage.createdAt?.toDate()?.toISOString() || '';
       }
 
       return {

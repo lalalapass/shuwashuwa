@@ -7,10 +7,11 @@ import type { VideoCallSession } from '../../types/api';
 
 interface VideoCallInterfaceProps {
   chatRoomId: string;
+  activeTab: 'chat' | 'schedule' | 'video';
   onCallEnd?: () => void;
 }
 
-const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onCallEnd }) => {
+const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, activeTab, onCallEnd }) => {
   const { user } = useAuth();
   const [session, setSession] = useState<VideoCallSession | null>(null);
   const [isInCall, setIsInCall] = useState(false);
@@ -26,11 +27,14 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
 
   useEffect(() => {
     isCleaningUpRef.current = false;
-    checkActiveSession();
+    // ビデオ通話タブがアクティブな時のみリスナーを開始
+    if (activeTab === 'video') {
+      checkActiveSession();
+    }
     return () => {
       cleanupAllListeners();
     };
-  }, [chatRoomId]);
+  }, [chatRoomId, activeTab]);
 
   // すべてのリスナーとタイマーをクリーンアップする関数
   const cleanupAllListeners = () => {
@@ -83,6 +87,15 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
     // クリーンアップ中は何もしない
     if (isCleaningUpRef.current) return;
     
+    // ビデオ通話タブがアクティブでない場合はリスナーを停止
+    if (activeTab !== 'video') {
+      if (statusListenerRef.current) {
+        statusListenerRef.current();
+        statusListenerRef.current = null;
+      }
+      return;
+    }
+    
     // Cloud Firestoreでアクティブセッションをチェック
     console.log('Checking active session for room:', chatRoomId);
     
@@ -92,8 +105,8 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
       statusListenerRef.current = null;
     }
     
-    // 通話状態を監視
-    if (user?.uid && !isCleaningUpRef.current) {
+    // 通話状態を監視（ビデオタブがアクティブな時のみ）
+    if (user?.uid && !isCleaningUpRef.current && activeTab === 'video') {
       // アクティブなルームを検索
       const roomsQuery = query(
         collection(db, 'rooms'),

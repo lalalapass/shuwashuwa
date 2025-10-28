@@ -252,12 +252,13 @@ export class WebRTCService {
 
   // ルーム監視開始（FirebaseRTCパターン）
   private startRoomListener(): void {
-    if (!this.roomId) return;
+    if (!this.roomId || this.isCleaningUp) return;
 
     const roomRef = doc(db, 'rooms', this.roomId);
     
     this.unsubscribe = onSnapshot(roomRef, async (snapshot) => {
-      if (!snapshot.exists()) return;
+      // クリーンアップ中は処理しない
+      if (this.isCleaningUp || !snapshot.exists()) return;
       
       const data = snapshot.data();
       console.log('Room updated:', data);
@@ -301,12 +302,19 @@ export class WebRTCService {
           console.error('Error processing answer:', error);
         }
       }
+    }, (error) => {
+      console.error('Error in room listener:', error);
+      // エラー時もリスナーを停止
+      if (this.unsubscribe) {
+        this.unsubscribe();
+        this.unsubscribe = null;
+      }
     });
   }
 
   // ICE候補収集（FirebaseRTCパターン）
   private collectIceCandidates(): void {
-    if (!this.peerConnection || !this.roomId) return;
+    if (!this.peerConnection || !this.roomId || this.isCleaningUp) return;
 
     const localName = this.isCaller ? 'callerCandidates' : 'calleeCandidates';
     const remoteName = this.isCaller ? 'calleeCandidates' : 'callerCandidates';
@@ -314,15 +322,16 @@ export class WebRTCService {
 
     // ICE候補送信
     this.peerConnection.onicecandidate = (event) => {
-      if (event.candidate) {
-        const candidateData = {
-          candidate: event.candidate.candidate,
-          sdpMLineIndex: event.candidate.sdpMLineIndex,
-          sdpMid: event.candidate.sdpMid
-        };
-        addDoc(candidatesCollection, candidateData);
-        console.log('ICE candidate sent');
-      }
+      // クリーンアップ中は送信しない
+      if (this.isCleaningUp || !event.candidate) return;
+      
+      const candidateData = {
+        candidate: event.candidate.candidate,
+        sdpMLineIndex: event.candidate.sdpMLineIndex,
+        sdpMid: event.candidate.sdpMid
+      };
+      addDoc(candidatesCollection, candidateData);
+      console.log('ICE candidate sent');
     };
 
     // リモートICE候補監視

@@ -112,10 +112,11 @@
 - [x] P2P接続確立実装
 
 ### 6.2 シグナリング実装
-- [x] Firebase Realtime Database でのシグナリング実装
+- [x] ~~Firebase Realtime Database でのシグナリング実装~~ → **Cloud Firestore に移行完了**
 - [x] ICE候補交換実装
 - [x] SDP交換実装
 - [x] 通話開始/終了管理実装
+- [x] **FirebaseRTCパターンへの移行完了** (2025-01-26)
 
 ## Phase 7: デプロイ設定（手動作業）
 
@@ -182,9 +183,9 @@
 
 ### ✅ 完了した機能
 - **認証システム**: Firebase Authentication
-- **データベース**: Cloud Firestore + Realtime Database
+- **データベース**: Cloud Firestore (Realtime Database は削除済み)
 - **リアルタイムチャット**: Firestore Realtime Listeners
-- **ビデオ通話**: WebRTC + Firebase Realtime Database
+- **ビデオ通話**: WebRTC + Cloud Firestore (FirebaseRTCパターン)
 - **デプロイ**: GitHub Pages + GitHub Actions
 - **セキュリティ**: Firestore セキュリティルール
 
@@ -200,6 +201,13 @@
 ### 🚀 デプロイ状況
 - **フロントエンド**: GitHub Pages でホスティング
 - **バックエンド**: Firebase サービスで完全移行
-- **データベース**: PostgreSQL → Firestore + Realtime Database
+- **データベース**: PostgreSQL → Cloud Firestore
 - **認証**: JWT → Firebase Authentication
 - **リアルタイム**: Socket.io → Firestore Listeners
+- **ビデオ通話**: 独自実装 → FirebaseRTCパターン
+
+### 🧹 クリーンアップ完了 (2025-01-26)
+- **Realtime Database**: 完全削除
+- **古いWebRTCコード**: FirebaseRTCパターンに移行
+- **設定ファイル**: firebase.json, firestore.indexes.json 作成
+- **不要なimport**: 削除完了

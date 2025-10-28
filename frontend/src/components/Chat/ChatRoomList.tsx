@@ -12,13 +12,34 @@ const ChatRoomList: React.FC<ChatRoomListProps> = ({ rooms, selectedRoomId, onRo
     if (!dateString) return '';
     const date = new Date(dateString);
     const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    const diffInMs = now.getTime() - date.getTime();
     
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+    const diffInMonths = Math.floor(diffInDays / 30);
+    const diffInYears = Math.floor(diffInDays / 365);
+    
+    if (diffInMinutes < 1) {
+      return 'たった今';
+    } else if (diffInMinutes < 60) {
+      return `${diffInMinutes}分前`;
+    } else if (diffInHours < 24) {
+      return `${diffInHours}時間前`;
+    } else if (diffInDays < 30) {
+      return `${diffInDays}日前`;
+    } else if (diffInMonths < 12) {
+      return `${diffInMonths}か月前`;
     } else {
-      return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+      return `${diffInYears}年前`;
     }
+  };
+
+  const formatLastMessage = (message: string) => {
+    if (!message) return 'メッセージがありません';
+    return message.length > 40 
+      ? `${message.substring(0, 40)}...` 
+      : message;
   };
 
   return (
@@ -38,21 +59,20 @@ const ChatRoomList: React.FC<ChatRoomListProps> = ({ rooms, selectedRoomId, onRo
               onClick={() => onRoomSelect(room.id)}
             >
               <div className="room-header">
-                <strong>{room.otherUsername}</strong>
-                {room.lastMessageAt && (
-                  <span className="last-message-time">
-                    {formatDate(room.lastMessageAt)}
-                  </span>
-                )}
-              </div>
-              {room.lastMessage && (
-                <div className="last-message">
-                  {room.lastMessage.length > 50 
-                    ? `${room.lastMessage.substring(0, 50)}...` 
-                    : room.lastMessage
-                  }
+                <div className="room-user-info">
+                  <strong className="room-username">{room.otherUsername}</strong>
+                  {room.lastMessageAt && (
+                    <span className="last-message-time">
+                      {formatDate(room.lastMessageAt)}
+                    </span>
+                  )}
                 </div>
-              )}
+              </div>
+              <div className="room-content">
+                <div className="last-message">
+                  {formatLastMessage(room.lastMessage || '')}
+                </div>
+              </div>
             </div>
           ))}
         </div>

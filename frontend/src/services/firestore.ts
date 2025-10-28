@@ -446,11 +446,32 @@ export const chatFirestoreApi = {
           console.error('Failed to get other user info:', error);
         }
         
+        // 最新メッセージを取得
+        let lastMessage = '';
+        let lastMessageAt = '';
+        try {
+          const messagesQuery = query(
+            collection(db, 'chatRooms', docSnapshot.id, 'messages'),
+            orderBy('createdAt', 'desc'),
+            limit(1)
+          );
+          const messagesSnapshot = await getDocs(messagesQuery);
+          if (!messagesSnapshot.empty) {
+            const latestMessage = messagesSnapshot.docs[0].data();
+            lastMessage = latestMessage.messageText || '';
+            lastMessageAt = latestMessage.createdAt?.toDate()?.toISOString() || '';
+          }
+        } catch (error) {
+          console.error('Failed to get latest message:', error);
+        }
+        
         rooms.push({
           id: docSnapshot.id,
           user1Id: data.user1Id,
           user2Id: data.user2Id,
           otherUsername: otherUsername,
+          lastMessage: lastMessage,
+          lastMessageAt: lastMessageAt,
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date(),
         });
@@ -475,21 +496,43 @@ export const chatFirestoreApi = {
           console.error('Failed to get other user info:', error);
         }
         
+        // 最新メッセージを取得
+        let lastMessage = '';
+        let lastMessageAt = '';
+        try {
+          const messagesQuery = query(
+            collection(db, 'chatRooms', docSnapshot.id, 'messages'),
+            orderBy('createdAt', 'desc'),
+            limit(1)
+          );
+          const messagesSnapshot = await getDocs(messagesQuery);
+          if (!messagesSnapshot.empty) {
+            const latestMessage = messagesSnapshot.docs[0].data();
+            lastMessage = latestMessage.messageText || '';
+            lastMessageAt = latestMessage.createdAt?.toDate()?.toISOString() || '';
+          }
+        } catch (error) {
+          console.error('Failed to get latest message:', error);
+        }
+        
         rooms.push({
           id: docSnapshot.id,
           user1Id: data.user1Id,
           user2Id: data.user2Id,
           otherUsername: otherUsername,
+          lastMessage: lastMessage,
+          lastMessageAt: lastMessageAt,
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date(),
         });
       }
     }
     
-    // 作成日時の降順でソート
+    // 最新メッセージの日時でソート（メッセージがない場合は作成日時）
     rooms.sort((a, b) => {
-      if (!a.createdAt || !b.createdAt) return 0;
-      return b.createdAt.getTime() - a.createdAt.getTime();
+      const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : a.createdAt.getTime();
+      const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : b.createdAt.getTime();
+      return bTime - aTime;
     });
     
     return { rooms };

@@ -16,6 +16,67 @@ import {
 import { db } from '../firebase/config';
 import type { User, Post, FriendRequest, ChatRoom, ChatMessage, Profile, VideoCallSchedule } from '../types/api';
 
+// ユーザー情報キャッシュ
+const userCache = new Map<string, { user: User; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5分
+
+// ユーザー情報をバッチで取得する関数
+const getUsersBatch = async (userIds: string[]): Promise<Map<string, User>> => {
+  const users = new Map<string, User>();
+  const uncachedIds: string[] = [];
+  
+  // キャッシュから取得
+  for (const userId of userIds) {
+    const cached = userCache.get(userId);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      users.set(userId, cached.user);
+    } else {
+      uncachedIds.push(userId);
+    }
+  }
+  
+  // キャッシュにないユーザーをバッチで取得
+  if (uncachedIds.length > 0) {
+    const userPromises = uncachedIds.map(async (userId) => {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          const user: User = {
+            id: userDoc.id,
+            uid: userDoc.id,
+            username: data.username,
+            signLanguageLevel: data.signLanguageLevel,
+            firstLanguage: data.firstLanguage,
+            profileText: data.profileText,
+            gender: data.gender,
+            ageGroup: data.ageGroup,
+            iconUrl: data.iconUrl,
+            createdAt: data.createdAt?.toDate() || new Date(),
+            updatedAt: data.updatedAt?.toDate() || new Date(),
+          };
+          
+          // キャッシュに保存
+          userCache.set(userId, { user, timestamp: Date.now() });
+          return { userId, user };
+        }
+      } catch (error) {
+        console.warn('Failed to get user info for userId:', userId);
+      }
+      return { userId, user: null };
+    });
+    
+    const results = await Promise.all(userPromises);
+    for (const { userId, user } of results) {
+      if (user) {
+        users.set(userId, user);
+      }
+    }
+  }
+  
+  return users;
+};
+
 // Users API
 export const usersFirestoreApi = {
   // ユーザー検索
@@ -154,21 +215,16 @@ export const postsFirestoreApi = {
     const snapshot = await getDocs(q);
     const posts: Post[] = [];
     
+    // ユーザーIDを収集
+    const userIds = snapshot.docs.map(doc => doc.data().userId).filter(Boolean);
+    
+    // ユーザー情報をバッチで取得
+    const users = await getUsersBatch(userIds);
+    
     for (const docSnapshot of snapshot.docs) {
       const data = docSnapshot.data();
-      
-      // ユーザー情報を取得（エラーが発生した場合はスキップ）
-      let username = 'Unknown User';
-      try {
-        const userDocRef = doc(db, 'users', data.userId);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          username = userDoc.data().username || 'Unknown User';
-        }
-      } catch (error) {
-        // ユーザー情報の取得に失敗した場合はデフォルト値を使用
-        console.warn('Failed to get user info for userId:', data.userId);
-      }
+      const user = users.get(data.userId);
+      const username = user?.username || 'Unknown User';
       
       posts.push({
         id: docSnapshot.id,
@@ -465,124 +521,88 @@ export const chatFirestoreApi = {
     
     const rooms: ChatRoom[] = [];
     const roomIds = new Set<string>();
+    const allRoomData: Array<{ docSnapshot: any; data: any; otherUserId: string }> = [];
     
-    // user1Id で検索した結果を追加
+    // user1Id で検索した結果を収集
     for (const docSnapshot of snapshot1.docs) {
       const data = docSnapshot.data();
       if (!roomIds.has(docSnapshot.id)) {
         roomIds.add(docSnapshot.id);
-        
-        // 相手のユーザー名を取得
-        let otherUsername = 'Unknown User';
-        try {
-          const otherUserId = data.user2Id;
-          const otherUserDoc = await getDoc(doc(db, 'users', otherUserId));
-          if (otherUserDoc.exists()) {
-            otherUsername = otherUserDoc.data().username || 'Unknown User';
-          }
-        } catch (error) {
-          console.error('Failed to get other user info:', error);
-        }
-        
-        // 最新メッセージを取得
-        let lastMessage = '';
-        let lastMessageAt = '';
-        try {
-          const messagesQuery = query(
-            collection(db, 'chatRooms', docSnapshot.id, 'messages'),
-            orderBy('createdAt', 'desc'),
-            limit(1)
-          );
-          const messagesSnapshot = await getDocs(messagesQuery);
-          if (!messagesSnapshot.empty) {
-            const latestMessage = messagesSnapshot.docs[0].data();
-            lastMessage = latestMessage.messageText || '';
-            lastMessageAt = latestMessage.createdAt?.toDate()?.toISOString() || '';
-          }
-        } catch (error) {
-          console.error('Failed to get latest message:', error);
-        }
-        
-        // 未読メッセージ数を取得
-        let unreadCount = 0;
-        try {
-          unreadCount = await chatFirestoreApi.getUnreadMessageCount(docSnapshot.id, userId);
-        } catch (error) {
-          console.error('Failed to get unread count for room:', docSnapshot.id, error);
-        }
-
-        rooms.push({
-          id: docSnapshot.id,
-          user1Id: data.user1Id,
-          user2Id: data.user2Id,
-          otherUsername: otherUsername,
-          lastMessage: lastMessage,
-          lastMessageAt: lastMessageAt,
-          unreadCount: unreadCount,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
+        allRoomData.push({
+          docSnapshot,
+          data,
+          otherUserId: data.user2Id
         });
       }
     }
     
-    // user2Id で検索した結果を追加
+    // user2Id で検索した結果を収集
     for (const docSnapshot of snapshot2.docs) {
       const data = docSnapshot.data();
       if (!roomIds.has(docSnapshot.id)) {
         roomIds.add(docSnapshot.id);
-        
-        // 相手のユーザー名を取得
-        let otherUsername = 'Unknown User';
-        try {
-          const otherUserId = data.user1Id;
-          const otherUserDoc = await getDoc(doc(db, 'users', otherUserId));
-          if (otherUserDoc.exists()) {
-            otherUsername = otherUserDoc.data().username || 'Unknown User';
-          }
-        } catch (error) {
-          console.error('Failed to get other user info:', error);
-        }
-        
-        // 最新メッセージを取得
-        let lastMessage = '';
-        let lastMessageAt = '';
-        try {
-          const messagesQuery = query(
-            collection(db, 'chatRooms', docSnapshot.id, 'messages'),
-            orderBy('createdAt', 'desc'),
-            limit(1)
-          );
-          const messagesSnapshot = await getDocs(messagesQuery);
-          if (!messagesSnapshot.empty) {
-            const latestMessage = messagesSnapshot.docs[0].data();
-            lastMessage = latestMessage.messageText || '';
-            lastMessageAt = latestMessage.createdAt?.toDate()?.toISOString() || '';
-          }
-        } catch (error) {
-          console.error('Failed to get latest message:', error);
-        }
-        
-        // 未読メッセージ数を取得
-        let unreadCount = 0;
-        try {
-          unreadCount = await chatFirestoreApi.getUnreadMessageCount(docSnapshot.id, userId);
-        } catch (error) {
-          console.error('Failed to get unread count for room:', docSnapshot.id, error);
-        }
-        
-        rooms.push({
-          id: docSnapshot.id,
-          user1Id: data.user1Id,
-          user2Id: data.user2Id,
-          otherUsername: otherUsername,
-          lastMessage: lastMessage,
-          lastMessageAt: lastMessageAt,
-          unreadCount: unreadCount,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
+        allRoomData.push({
+          docSnapshot,
+          data,
+          otherUserId: data.user1Id
         });
       }
     }
+    
+    // 相手のユーザーIDを収集
+    const otherUserIds = allRoomData.map(room => room.otherUserId).filter(Boolean);
+    
+    // ユーザー情報をバッチで取得
+    const users = await getUsersBatch(otherUserIds);
+    
+    // 各ルームの情報を並列で取得
+    const roomPromises = allRoomData.map(async (roomInfo) => {
+      const { docSnapshot, data, otherUserId } = roomInfo;
+      const user = users.get(otherUserId);
+      const otherUsername = user?.username || 'Unknown User';
+      
+      // 最新メッセージを取得
+      let lastMessage = '';
+      let lastMessageAt = '';
+      try {
+        const messagesQuery = query(
+          collection(db, 'chatRooms', docSnapshot.id, 'messages'),
+          orderBy('createdAt', 'desc'),
+          limit(1)
+        );
+        const messagesSnapshot = await getDocs(messagesQuery);
+        if (!messagesSnapshot.empty) {
+          const latestMessage = messagesSnapshot.docs[0].data();
+          lastMessage = latestMessage.messageText || '';
+          lastMessageAt = latestMessage.createdAt?.toDate()?.toISOString() || '';
+        }
+      } catch (error) {
+        console.error('Failed to get latest message:', error);
+      }
+      
+      // 未読メッセージ数を取得
+      let unreadCount = 0;
+      try {
+        unreadCount = await chatFirestoreApi.getUnreadMessageCount(docSnapshot.id, userId);
+      } catch (error) {
+        console.error('Failed to get unread count for room:', docSnapshot.id, error);
+      }
+
+      return {
+        id: docSnapshot.id,
+        user1Id: data.user1Id,
+        user2Id: data.user2Id,
+        otherUsername: otherUsername,
+        lastMessage: lastMessage,
+        lastMessageAt: lastMessageAt,
+        unreadCount: unreadCount,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
+      };
+    });
+    
+    const roomResults = await Promise.all(roomPromises);
+    rooms.push(...roomResults);
     
     // 最新メッセージの日時でソート（メッセージがない場合は作成日時）
     rooms.sort((a, b) => {
@@ -604,19 +624,16 @@ export const chatFirestoreApi = {
     const snapshot = await getDocs(q);
     const messages: ChatMessage[] = [];
     
+    // 送信者IDを収集
+    const senderIds = snapshot.docs.map(doc => doc.data().senderId).filter(Boolean);
+    
+    // ユーザー情報をバッチで取得
+    const users = await getUsersBatch(senderIds);
+    
     for (const docSnapshot of snapshot.docs) {
       const data = docSnapshot.data();
-      
-      // 送信者のユーザー名を取得
-      let senderUsername = 'Unknown User';
-      try {
-        const senderDoc = await getDoc(doc(db, 'users', data.senderId));
-        if (senderDoc.exists()) {
-          senderUsername = senderDoc.data().username || 'Unknown User';
-        }
-      } catch (error) {
-        console.error('Failed to get sender info:', error);
-      }
+      const user = users.get(data.senderId);
+      const senderUsername = user?.username || 'Unknown User';
       
       messages.push({
         id: docSnapshot.id,

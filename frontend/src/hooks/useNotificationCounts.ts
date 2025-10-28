@@ -14,13 +14,12 @@ export const useNotificationCounts = () => {
     pendingRequests: 0,
     unreadChats: 0,
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const { user: currentUser, loading: authLoading } = useAuth();
 
+  // ユーザーがログアウトした時のみカウントをリセット
   useEffect(() => {
-    if (!authLoading && currentUser) {
-      loadNotificationCounts();
-    } else if (!authLoading && !currentUser) {
+    if (!authLoading && !currentUser) {
       setCounts({ pendingRequests: 0, unreadChats: 0 });
       setLoading(false);
     }

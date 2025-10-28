@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotificationCounts } from '../../hooks/useNotificationCounts';
@@ -11,6 +11,13 @@ const Navigation: React.FC = () => {
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
+
+  // ユーザーがログインした時に通知カウントを初期読み込み
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      refreshCounts();
+    }
+  }, [isAuthenticated, user, refreshCounts]);
 
   const NotificationBadge: React.FC<{ count: number }> = ({ count }) => {
     if (count === 0) return null;

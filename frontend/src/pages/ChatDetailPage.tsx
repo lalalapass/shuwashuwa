@@ -98,8 +98,7 @@ const ChatDetailPage: React.FC = () => {
       // メッセージを手動でリストに追加
       setMessages([...messages, response.message]);
       
-      // 通知カウントを更新
-      refreshCounts();
+      // 通知カウントの自動更新を削除（手動更新のみ）
     } catch (error) {
       console.error('Failed to send message:', error);
       alert('メッセージの送信に失敗しました');

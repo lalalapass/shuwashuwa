@@ -1,24 +1,21 @@
 import React, { useState } from 'react';
 
 interface MessageInputProps {
-  onSendMessage: (data: { messageText?: string; videoUrl?: string }) => void;
+  onSendMessage: (data: { messageText: string }) => void;
+  onRefresh?: () => void;
   disabled?: boolean;
+  refreshing?: boolean;
 }
 
-const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled }) => {
+const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onRefresh, disabled, refreshing }) => {
   const [messageText, setMessageText] = useState('');
-  const [videoUrl, setVideoUrl] = useState('');
-  const [activeTab, setActiveTab] = useState<'text' | 'video'>('text');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (activeTab === 'text' && messageText.trim()) {
+    if (messageText.trim()) {
       onSendMessage({ messageText: messageText.trim() });
       setMessageText('');
-    } else if (activeTab === 'video' && videoUrl.trim()) {
-      onSendMessage({ videoUrl: videoUrl.trim() });
-      setVideoUrl('');
     }
   };
 
@@ -31,52 +28,37 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled }) 
 
   return (
     <div className="message-input">
-      <div className="input-tabs">
-        <button
-          type="button"
-          className={`tab ${activeTab === 'text' ? 'active' : ''}`}
-          onClick={() => setActiveTab('text')}
-        >
-          テキスト
-        </button>
-        <button
-          type="button"
-          className={`tab ${activeTab === 'video' ? 'active' : ''}`}
-          onClick={() => setActiveTab('video')}
-        >
-          動画URL
-        </button>
-      </div>
-      
       <form onSubmit={handleSubmit} className="input-form">
-        {activeTab === 'text' ? (
-          <textarea
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="メッセージを入力..."
-            disabled={disabled}
-            rows={3}
-            className="text-input"
-          />
-        ) : (
-          <input
-            type="url"
-            value={videoUrl}
-            onChange={(e) => setVideoUrl(e.target.value)}
-            placeholder="動画のURLを入力..."
-            disabled={disabled}
-            className="url-input"
-          />
-        )}
+        <textarea
+          value={messageText}
+          onChange={(e) => setMessageText(e.target.value)}
+          onKeyPress={handleKeyPress}
+          placeholder="メッセージを入力..."
+          disabled={disabled}
+          rows={3}
+          className="text-input"
+        />
         
-        <button
-          type="submit"
-          disabled={disabled || (activeTab === 'text' ? !messageText.trim() : !videoUrl.trim())}
-          className="send-button"
-        >
-          送信
-        </button>
+        <div className="button-group">
+          <button
+            type="submit"
+            disabled={disabled || !messageText.trim()}
+            className="send-button"
+          >
+            送信
+          </button>
+          
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={disabled || refreshing}
+              className="refresh-button"
+            >
+              {refreshing ? '更新中...' : '更新'}
+            </button>
+          )}
+        </div>
       </form>
     </div>
   );

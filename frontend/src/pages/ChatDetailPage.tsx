@@ -20,38 +20,12 @@ const ChatDetailPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'chat' | 'schedule' | 'video'>('chat');
   const { user: currentUser } = useAuth();
   const { refreshCounts } = useNotificationCounts();
-  const [refreshTimeout, setRefreshTimeout] = useState<number | null>(null);
 
   useEffect(() => {
     if (roomId) {
       loadRoomInfo(roomId);
+      loadMessages(roomId);
     }
-  }, [roomId]);
-
-  // リアルタイムメッセージリスナー
-  useEffect(() => {
-    if (!roomId) return;
-
-    const unsubscribe = chatFirestoreApi.subscribeToMessages(roomId, (newMessages) => {
-      setMessages(newMessages);
-      setMessagesLoading(false);
-      
-      // デバウンスして通知カウントを更新（500ms後に実行）
-      if (refreshTimeout) {
-        clearTimeout(refreshTimeout);
-      }
-      const timeout = setTimeout(() => {
-        refreshCounts();
-      }, 500);
-      setRefreshTimeout(timeout);
-    });
-
-    return () => {
-      unsubscribe();
-      if (refreshTimeout) {
-        clearTimeout(refreshTimeout);
-      }
-    };
   }, [roomId]);
 
   const loadRoomInfo = async (roomId: string) => {
@@ -61,7 +35,6 @@ const ChatDetailPage: React.FC = () => {
     }
     
     setLoading(true);
-    setMessagesLoading(true);
     try {
       // Load room info only
       const roomsResponse = await chatFirestoreApi.getRooms(currentUser.uid);
@@ -84,7 +57,21 @@ const ChatDetailPage: React.FC = () => {
     }
   };
 
-  const handleSendMessage = async (data: { messageText?: string; videoUrl?: string }) => {
+  const loadMessages = async (roomId: string) => {
+    if (!currentUser) return;
+    
+    setMessagesLoading(true);
+    try {
+      const response = await chatFirestoreApi.getMessages(roomId);
+      setMessages(response.messages);
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+    } finally {
+      setMessagesLoading(false);
+    }
+  };
+
+  const handleSendMessage = async (data: { messageText: string }) => {
     if (!roomId || !currentUser || sending) return;
     
     setSending(true);
@@ -92,9 +79,13 @@ const ChatDetailPage: React.FC = () => {
       const response = await chatFirestoreApi.sendMessage(roomId, {
         senderId: currentUser.uid,
         messageText: data.messageText,
-        videoUrl: data.videoUrl,
       });
-      // Message will be added to the list via real-time listener
+      
+      // メッセージを手動でリストに追加
+      setMessages([...messages, response.message]);
+      
+      // 通知カウントを更新
+      refreshCounts();
     } catch (error) {
       console.error('Failed to send message:', error);
       alert('メッセージの送信に失敗しました');
@@ -127,31 +118,36 @@ const ChatDetailPage: React.FC = () => {
   return (
     <div className="chat-detail-page">
       <div className="chat-detail-container">
-        <div className="chat-header">
-          <button onClick={handleBackToList} className="back-button">
-            ← チャット一覧
-          </button>
-          <h3>{room.otherUsername}とのチャット</h3>
-          <div className="chat-tabs">
-            <button
-              onClick={() => setActiveTab('chat')}
-              className={`tab-button ${activeTab === 'chat' ? 'active' : ''}`}
-            >
-              💬 チャット
+        {/* ヘッダーを外に出して独立させる */}
+        <div className="page-header">
+          <div className="header-content">
+            <button onClick={handleBackToList} className="back-button">
+              ← チャット一覧
             </button>
-            <button
-              onClick={() => setActiveTab('schedule')}
-              className={`tab-button ${activeTab === 'schedule' ? 'active' : ''}`}
-            >
-              📅 日程調整
-            </button>
-            <button
-              onClick={() => setActiveTab('video')}
-              className={`tab-button ${activeTab === 'video' ? 'active' : ''}`}
-            >
-              📹 ビデオ通話
-            </button>
+            <h2 className="page-title">{room.otherUsername}とのチャット</h2>
           </div>
+        </div>
+
+        {/* タブナビゲーション */}
+        <div className="tab-navigation">
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`tab-button ${activeTab === 'chat' ? 'active' : ''}`}
+          >
+            💬 チャット
+          </button>
+          <button
+            onClick={() => setActiveTab('schedule')}
+            className={`tab-button ${activeTab === 'schedule' ? 'active' : ''}`}
+          >
+            📅 日程調整
+          </button>
+          <button
+            onClick={() => setActiveTab('video')}
+            className={`tab-button ${activeTab === 'video' ? 'active' : ''}`}
+          >
+            📹 ビデオ通話
+          </button>
         </div>
         
         <div className="chat-content">
@@ -171,7 +167,9 @@ const ChatDetailPage: React.FC = () => {
               <div className="chat-input">
                 <MessageInput
                   onSendMessage={handleSendMessage}
+                  onRefresh={() => roomId && loadMessages(roomId)}
                   disabled={sending}
+                  refreshing={messagesLoading}
                 />
               </div>
             </>

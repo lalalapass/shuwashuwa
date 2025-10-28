@@ -11,9 +11,7 @@ import {
   orderBy, 
   limit,
   addDoc,
-  serverTimestamp,
-  onSnapshot,
-  Unsubscribe
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import type { User, Post, FriendRequest, ChatRoom, ChatMessage, Profile, VideoCallSchedule } from '../types/api';
@@ -593,46 +591,6 @@ export const chatFirestoreApi = {
     }
     
     return { messages };
-  },
-
-  // リアルタイムメッセージリスナー
-  subscribeToMessages: (roomId: string, callback: (messages: ChatMessage[]) => void): Unsubscribe => {
-    const q = query(
-      collection(db, 'chatRooms', roomId, 'messages'),
-      orderBy('createdAt', 'asc')
-    );
-    
-    return onSnapshot(q, async (snapshot) => {
-      const messages: ChatMessage[] = [];
-      
-      for (const docSnapshot of snapshot.docs) {
-        const data = docSnapshot.data();
-        
-        // 送信者のユーザー名を取得
-        let senderUsername = 'Unknown User';
-        try {
-          const senderDoc = await getDoc(doc(db, 'users', data.senderId));
-          if (senderDoc.exists()) {
-            senderUsername = senderDoc.data().username || 'Unknown User';
-          }
-        } catch (error) {
-          console.error('Failed to get sender info:', error);
-        }
-        
-        messages.push({
-          id: docSnapshot.id,
-          chatRoomId: roomId,
-          senderId: data.senderId,
-          senderUsername: senderUsername,
-          messageText: data.messageText,
-          videoUrl: data.videoUrl,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          readBy: data.readBy || {},
-        });
-      }
-      
-      callback(messages);
-    });
   },
 
   // 未読メッセージ数を取得（既読フラグベース）

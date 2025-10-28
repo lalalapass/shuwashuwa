@@ -59,7 +59,16 @@ const RequestsPage: React.FC = () => {
   return (
     <div className="requests-page">
       <div className="requests-container">
-        <h2>受信した会話リクエスト</h2>
+        <div className="requests-header">
+          <h2>受信した会話リクエスト</h2>
+          <button 
+            onClick={loadRequests} 
+            className="refresh-button"
+            disabled={loading}
+          >
+            {loading ? '更新中...' : '更新'}
+          </button>
+        </div>
         
         {requests.length === 0 ? (
           <div className="no-requests">

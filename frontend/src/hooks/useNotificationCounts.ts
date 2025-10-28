@@ -20,13 +20,6 @@ export const useNotificationCounts = () => {
   useEffect(() => {
     if (!authLoading && currentUser) {
       loadNotificationCounts();
-      
-      // 30秒ごとに通知カウントを更新
-      const interval = setInterval(() => {
-        loadNotificationCounts();
-      }, 30000);
-      
-      return () => clearInterval(interval);
     } else if (!authLoading && !currentUser) {
       setCounts({ pendingRequests: 0, unreadChats: 0 });
       setLoading(false);

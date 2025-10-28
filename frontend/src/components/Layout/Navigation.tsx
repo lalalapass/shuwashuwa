@@ -5,7 +5,7 @@ import { useNotificationCounts } from '../../hooks/useNotificationCounts';
 
 const Navigation: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
-  const { counts } = useNotificationCounts();
+  const { counts, refreshCounts } = useNotificationCounts();
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
@@ -43,14 +43,20 @@ const Navigation: React.FC = () => {
                 チャット
                 <NotificationBadge count={counts.unreadChats} />
               </Link>
-              <Link to="/profile" className={isActive('/profile') ? 'active' : ''}>
+            </div>
+            <div className="nav-actions">
+              <Link to="/profile" className={`nav-link ${isActive('/profile') ? 'active' : ''}`}>
                 プロフィール
               </Link>
-            </div>
-            <div className="nav-user">
-              <span>こんにちは、{user?.username}さん</span>
               <button onClick={logout} className="logout-button">
                 ログアウト
+              </button>
+              <button 
+                onClick={refreshCounts} 
+                className="refresh-button"
+                title="通知を更新"
+              >
+                更新
               </button>
             </div>
           </>

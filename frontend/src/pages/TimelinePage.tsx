@@ -42,6 +42,16 @@ const TimelinePage: React.FC = () => {
   return (
     <div className="timeline-page">
       <div className="timeline-container">
+        <div className="timeline-header">
+          <h2>タイムライン</h2>
+          <button 
+            onClick={loadPosts} 
+            className="refresh-button"
+            disabled={loading}
+          >
+            {loading ? '更新中...' : '更新'}
+          </button>
+        </div>
         <CreatePost onPostCreated={handlePostCreated} />
         <div className="posts-list">
           {posts.length === 0 ? (

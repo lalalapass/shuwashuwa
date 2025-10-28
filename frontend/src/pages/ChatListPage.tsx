@@ -53,6 +53,16 @@ const ChatListPage: React.FC = () => {
   return (
     <div className="chat-list-page">
       <div className="chat-list-container">
+        <div className="chat-list-header">
+          <h2>チャット</h2>
+          <button 
+            onClick={loadRooms} 
+            className="refresh-button"
+            disabled={loading}
+          >
+            {loading ? '更新中...' : '更新'}
+          </button>
+        </div>
         <ChatRoomList
           rooms={rooms}
           onRoomSelect={handleRoomSelect}

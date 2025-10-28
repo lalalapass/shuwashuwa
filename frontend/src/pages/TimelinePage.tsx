@@ -20,7 +20,7 @@ const TimelinePage: React.FC = () => {
     return () => {
       unregisterRefreshFunction('timeline');
     };
-  }, [registerRefreshFunction, unregisterRefreshFunction]);
+  }, []);
 
   const loadPosts = async () => {
     try {

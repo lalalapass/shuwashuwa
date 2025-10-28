@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { friendRequestsFirestoreApi, chatFirestoreApi } from '../services/firestore';
 import { useAuth } from '../context/AuthContext';
@@ -56,9 +56,9 @@ export const useNotificationCounts = () => {
     }
   };
 
-  const refreshCounts = () => {
+  const refreshCounts = useCallback(() => {
     loadNotificationCounts();
-  };
+  }, [currentUser]);
 
   return {
     counts,

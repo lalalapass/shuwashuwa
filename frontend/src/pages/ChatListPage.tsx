@@ -25,7 +25,7 @@ const ChatListPage: React.FC = () => {
     return () => {
       unregisterRefreshFunction('chatList');
     };
-  }, [registerRefreshFunction, unregisterRefreshFunction]);
+  }, []);
 
   const loadRooms = async () => {
     setLoading(true);

@@ -40,7 +40,7 @@ const ChatDetailPage: React.FC = () => {
     return () => {
       unregisterRefreshFunction('chatDetail');
     };
-  }, [roomId, registerRefreshFunction, unregisterRefreshFunction]);
+  }, [roomId]);
 
   const loadRoomInfo = async (roomId: string) => {
     if (!currentUser) {

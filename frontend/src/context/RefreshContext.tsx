@@ -60,7 +60,7 @@ export const RefreshProvider: React.FC<RefreshProviderProps> = ({ children }) =>
     } finally {
       setIsRefreshing(false);
     }
-  }, [refreshFunctions, isRefreshing, refreshCounts]);
+  }, [refreshFunctions, isRefreshing]);
 
   return (
     <RefreshContext.Provider value={{

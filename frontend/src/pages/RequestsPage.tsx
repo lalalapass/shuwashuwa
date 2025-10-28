@@ -35,7 +35,7 @@ const RequestsPage: React.FC = () => {
       unregisterRefreshFunction('requests');
       unregisterRefreshFunction('sentRequests');
     };
-  }, [currentUser, authLoading, registerRefreshFunction, unregisterRefreshFunction]);
+  }, [currentUser, authLoading]);
 
   const loadRequests = async () => {
     if (!currentUser) {

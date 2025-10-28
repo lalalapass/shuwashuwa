@@ -17,7 +17,7 @@ const Navigation: React.FC = () => {
     if (isAuthenticated && user) {
       refreshCounts();
     }
-  }, [isAuthenticated, user, refreshCounts]);
+  }, [isAuthenticated, user]);
 
   const NotificationBadge: React.FC<{ count: number }> = ({ count }) => {
     if (count === 0) return null;

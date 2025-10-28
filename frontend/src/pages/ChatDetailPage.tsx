@@ -7,6 +7,7 @@ import MessageInput from '../components/Chat/MessageInput';
 import ScheduleManager from '../components/VideoCall/ScheduleManager';
 import VideoCallInterface from '../components/VideoCall/VideoCallInterface';
 import { useNotificationCounts } from '../hooks/useNotificationCounts';
+import { useRefreshContext } from '../context/RefreshContext';
 import type { ChatRoom, ChatMessage } from '../types/api';
 
 const ChatDetailPage: React.FC = () => {
@@ -20,13 +21,26 @@ const ChatDetailPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'chat' | 'schedule' | 'video'>('chat');
   const { user: currentUser } = useAuth();
   const { refreshCounts } = useNotificationCounts();
+  const { registerRefreshFunction, unregisterRefreshFunction } = useRefreshContext();
 
   useEffect(() => {
     if (roomId) {
       loadRoomInfo(roomId);
       loadMessages(roomId);
+      
+      // 更新関数を登録（roomIdが変更されるたびに再登録）
+      registerRefreshFunction('chatDetail', () => {
+        if (roomId) {
+          loadMessages(roomId);
+        }
+      });
     }
-  }, [roomId]);
+    
+    // コンポーネントのアンマウント時に登録を解除
+    return () => {
+      unregisterRefreshFunction('chatDetail');
+    };
+  }, [roomId, registerRefreshFunction, unregisterRefreshFunction]);
 
   const loadRoomInfo = async (roomId: string) => {
     if (!currentUser) {
@@ -167,9 +181,7 @@ const ChatDetailPage: React.FC = () => {
               <div className="chat-input">
                 <MessageInput
                   onSendMessage={handleSendMessage}
-                  onRefresh={() => roomId && loadMessages(roomId)}
                   disabled={sending}
-                  refreshing={messagesLoading}
                 />
               </div>
             </>

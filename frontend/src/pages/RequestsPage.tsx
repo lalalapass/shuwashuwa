@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import RequestCard from '../components/Requests/RequestCard';
 import type { FriendRequest } from '../types/api';
 import { useNotificationCounts } from '../hooks/useNotificationCounts';
+import { useRefreshContext } from '../context/RefreshContext';
 
 const RequestsPage: React.FC = () => {
   const [requests, setRequests] = useState<FriendRequest[]>([]);
@@ -11,12 +12,21 @@ const RequestsPage: React.FC = () => {
   const [handledRequests, setHandledRequests] = useState<Set<string>>(new Set());
   const { user: currentUser, loading: authLoading } = useAuth();
   const { refreshCounts } = useNotificationCounts();
+  const { registerRefreshFunction, unregisterRefreshFunction } = useRefreshContext();
 
   useEffect(() => {
     if (!authLoading && currentUser) {
       loadRequests();
+      
+      // 更新関数を登録
+      registerRefreshFunction('requests', loadRequests);
     }
-  }, [currentUser, authLoading]);
+    
+    // コンポーネントのアンマウント時に登録を解除
+    return () => {
+      unregisterRefreshFunction('requests');
+    };
+  }, [currentUser, authLoading, registerRefreshFunction, unregisterRefreshFunction]);
 
   const loadRequests = async () => {
     if (!currentUser) {
@@ -61,13 +71,6 @@ const RequestsPage: React.FC = () => {
       <div className="requests-container">
         <div className="requests-header">
           <h2>受信した会話リクエスト</h2>
-          <button 
-            onClick={loadRequests} 
-            className="refresh-button"
-            disabled={loading}
-          >
-            {loading ? '更新中...' : '更新'}
-          </button>
         </div>
         
         {requests.length === 0 ? (

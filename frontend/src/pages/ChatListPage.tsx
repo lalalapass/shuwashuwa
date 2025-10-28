@@ -5,17 +5,27 @@ import { useAuth } from '../context/AuthContext';
 import ChatRoomList from '../components/Chat/ChatRoomList';
 import type { ChatRoom } from '../types/api';
 import { useNotificationCounts } from '../hooks/useNotificationCounts';
+import { useRefreshContext } from '../context/RefreshContext';
 
 const ChatListPage: React.FC = () => {
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const { user: currentUser } = useAuth();
   const { refreshCounts } = useNotificationCounts();
+  const { registerRefreshFunction, unregisterRefreshFunction } = useRefreshContext();
   const navigate = useNavigate();
 
   useEffect(() => {
     loadRooms();
-  }, []);
+    
+    // 更新関数を登録
+    registerRefreshFunction('chatList', loadRooms);
+    
+    // コンポーネントのアンマウント時に登録を解除
+    return () => {
+      unregisterRefreshFunction('chatList');
+    };
+  }, [registerRefreshFunction, unregisterRefreshFunction]);
 
   const loadRooms = async () => {
     setLoading(true);
@@ -55,13 +65,6 @@ const ChatListPage: React.FC = () => {
       <div className="chat-list-container">
         <div className="chat-list-header">
           <h2>チャット</h2>
-          <button 
-            onClick={loadRooms} 
-            className="refresh-button"
-            disabled={loading}
-          >
-            {loading ? '更新中...' : '更新'}
-          </button>
         </div>
         <ChatRoomList
           rooms={rooms}

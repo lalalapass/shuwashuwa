@@ -2,10 +2,12 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotificationCounts } from '../../hooks/useNotificationCounts';
+import { useRefreshContext } from '../../context/RefreshContext';
 
 const Navigation: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
   const { counts, refreshCounts } = useNotificationCounts();
+  const { refreshAll, isRefreshing } = useRefreshContext();
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
@@ -52,11 +54,12 @@ const Navigation: React.FC = () => {
                 ログアウト
               </button>
               <button 
-                onClick={refreshCounts} 
+                onClick={refreshAll} 
                 className="refresh-button"
-                title="通知を更新"
+                title="全てのデータを更新"
+                disabled={isRefreshing}
               >
-                更新
+                {isRefreshing ? '更新中...' : '更新'}
               </button>
             </div>
           </>

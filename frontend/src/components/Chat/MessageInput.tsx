@@ -2,12 +2,10 @@ import React, { useState } from 'react';
 
 interface MessageInputProps {
   onSendMessage: (data: { messageText: string }) => void;
-  onRefresh?: () => void;
   disabled?: boolean;
-  refreshing?: boolean;
 }
 
-const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onRefresh, disabled, refreshing }) => {
+const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, disabled }) => {
   const [messageText, setMessageText] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -47,17 +45,6 @@ const MessageInput: React.FC<MessageInputProps> = ({ onSendMessage, onRefresh, d
           >
             送信
           </button>
-          
-          {onRefresh && (
-            <button
-              type="button"
-              onClick={onRefresh}
-              disabled={disabled || refreshing}
-              className="refresh-button"
-            >
-              {refreshing ? '更新中...' : '更新'}
-            </button>
-          )}
         </div>
       </form>
     </div>

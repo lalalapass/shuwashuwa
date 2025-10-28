@@ -38,9 +38,11 @@ export const useNotificationCounts = () => {
       const requestsResponse = await friendRequestsFirestoreApi.getRequests(currentUser.uid);
       const pendingRequestsCount = requestsResponse.requests.length;
 
-      // 未読メッセージの総数を取得
+      // チャットルーム一覧を取得し、各ルームのunreadCountの合計を計算
       const chatResponse = await chatFirestoreApi.getRooms(currentUser.uid);
-      const unreadChatsCount = await getUnreadMessagesCount(chatResponse.rooms, currentUser.uid);
+      const unreadChatsCount = chatResponse.rooms.reduce((total, room) => {
+        return total + (room.unreadCount || 0);
+      }, 0);
 
       setCounts({
         pendingRequests: pendingRequestsCount,
@@ -52,22 +54,6 @@ export const useNotificationCounts = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const getUnreadMessagesCount = async (rooms: any[], currentUserId: string): Promise<number> => {
-    let totalUnreadCount = 0;
-    
-    for (const room of rooms) {
-      try {
-        // 各チャットルームの未読メッセージ数を取得（既読フラグベース）
-        const unreadCount = await chatFirestoreApi.getUnreadMessageCount(room.id, currentUserId);
-        totalUnreadCount += unreadCount;
-      } catch (error) {
-        console.error('Failed to get unread count for room:', room.id, error);
-      }
-    }
-    
-    return totalUnreadCount;
   };
 
   const refreshCounts = () => {

@@ -2,15 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { postsFirestoreApi } from '../services/firestore';
 import PostCard from '../components/Timeline/PostCard';
 import CreatePost from '../components/Timeline/CreatePost';
+import { useRefreshContext } from '../context/RefreshContext';
 import type { Post } from '../types/api';
 
 const TimelinePage: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const { registerRefreshFunction, unregisterRefreshFunction } = useRefreshContext();
 
   useEffect(() => {
     loadPosts();
-  }, []);
+    
+    // 更新関数を登録
+    registerRefreshFunction('timeline', loadPosts);
+    
+    // コンポーネントのアンマウント時に登録を解除
+    return () => {
+      unregisterRefreshFunction('timeline');
+    };
+  }, [registerRefreshFunction, unregisterRefreshFunction]);
 
   const loadPosts = async () => {
     try {
@@ -44,13 +54,6 @@ const TimelinePage: React.FC = () => {
       <div className="timeline-container">
         <div className="timeline-header">
           <h2>タイムライン</h2>
-          <button 
-            onClick={loadPosts} 
-            className="refresh-button"
-            disabled={loading}
-          >
-            {loading ? '更新中...' : '更新'}
-          </button>
         </div>
         <CreatePost onPostCreated={handlePostCreated} />
         <div className="posts-list">

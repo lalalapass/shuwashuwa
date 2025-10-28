@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNotificationCounts } from '../../hooks/useNotificationCounts';
 import type { ChatRoom } from '../../types/api';
 
 interface ChatRoomListProps {

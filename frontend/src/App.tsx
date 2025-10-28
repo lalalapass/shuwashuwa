@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { RefreshProvider } from './context/RefreshContext';
 import Navigation from './components/Layout/Navigation';
 import AuthPage from './pages/AuthPage';
 import HomePage from './pages/HomePage';
@@ -96,7 +97,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <AppContent />
+      <RefreshProvider>
+        <AppContent />
+      </RefreshProvider>
     </AuthProvider>
   );
 };

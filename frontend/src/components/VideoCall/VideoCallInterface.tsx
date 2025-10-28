@@ -21,21 +21,51 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const webrtcServiceRef = useRef<WebRTCService | null>(null);
   const statusListenerRef = useRef<any>(null);
+  const streamCheckTimeoutRef = useRef<number | null>(null);
+  const isCleaningUpRef = useRef<boolean>(false);
 
   useEffect(() => {
+    isCleaningUpRef.current = false;
     checkActiveSession();
     return () => {
-      // Cleanup streams when component unmounts
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
-      // Cleanup status listener
-      if (statusListenerRef.current) {
-        statusListenerRef.current();
-        statusListenerRef.current = null;
-      }
+      cleanupAllListeners();
     };
   }, [chatRoomId]);
+
+  // すべてのリスナーとタイマーをクリーンアップする関数
+  const cleanupAllListeners = () => {
+    isCleaningUpRef.current = true;
+    
+    // ストリーム停止
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      setLocalStream(null);
+    }
+    
+    // リモートストリーム停止
+    if (remoteStream) {
+      remoteStream.getTracks().forEach(track => track.stop());
+      setRemoteStream(null);
+    }
+    
+    // ステータスリスナー停止
+    if (statusListenerRef.current) {
+      statusListenerRef.current();
+      statusListenerRef.current = null;
+    }
+    
+    // ストリームチェックタイマー停止
+    if (streamCheckTimeoutRef.current) {
+      clearTimeout(streamCheckTimeoutRef.current);
+      streamCheckTimeoutRef.current = null;
+    }
+    
+    // WebRTCサービスクリーンアップ
+    if (webrtcServiceRef.current) {
+      webrtcServiceRef.current.cleanup();
+      webrtcServiceRef.current = null;
+    }
+  };
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {
@@ -50,6 +80,9 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
   }, [remoteStream]);
 
   const checkActiveSession = async () => {
+    // クリーンアップ中は何もしない
+    if (isCleaningUpRef.current) return;
+    
     // Cloud Firestoreでアクティブセッションをチェック
     console.log('Checking active session for room:', chatRoomId);
     
@@ -60,7 +93,7 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
     }
     
     // 通話状態を監視
-    if (user?.uid) {
+    if (user?.uid && !isCleaningUpRef.current) {
       // アクティブなルームを検索
       const roomsQuery = query(
         collection(db, 'rooms'),
@@ -73,6 +106,9 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
       console.log('Setting up rooms listener for chatRoomId:', chatRoomId);
       
       statusListenerRef.current = onSnapshot(roomsQuery, (snapshot) => {
+        // クリーンアップ中は処理しない
+        if (isCleaningUpRef.current) return;
+        
         if (!snapshot.empty) {
           const roomDoc = snapshot.docs[0];
           const roomData = roomDoc.data();
@@ -98,8 +134,52 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
           console.log('No active call detected');
           setSession(null);
         }
+      }, (error) => {
+        console.error('Error in status listener:', error);
+        // エラー時もリスナーを停止
+        if (statusListenerRef.current) {
+          statusListenerRef.current();
+          statusListenerRef.current = null;
+        }
       });
     }
+  };
+
+  // リモートストリーム監視関数（改善版）
+  const startRemoteStreamMonitoring = () => {
+    // 既存のタイマーをクリア
+    if (streamCheckTimeoutRef.current) {
+      clearTimeout(streamCheckTimeoutRef.current);
+      streamCheckTimeoutRef.current = null;
+    }
+
+    let streamCheckCount = 0;
+    const maxStreamChecks = 30; // 30秒間試行
+    
+    const checkRemoteStream = () => {
+      // クリーンアップ中は停止
+      if (isCleaningUpRef.current) return;
+      
+      const remoteStream = webrtcServiceRef.current?.getRemoteStream();
+      if (remoteStream && remoteStream.getTracks().length > 0) {
+        setRemoteStream(remoteStream);
+        console.log('✅ Remote stream set in UI with', remoteStream.getTracks().length, 'tracks');
+        // 成功したらタイマーをクリア
+        if (streamCheckTimeoutRef.current) {
+          clearTimeout(streamCheckTimeoutRef.current);
+          streamCheckTimeoutRef.current = null;
+        }
+      } else if (streamCheckCount < maxStreamChecks && !isCleaningUpRef.current) {
+        streamCheckCount++;
+        console.log(`Checking remote stream... (${streamCheckCount}/${maxStreamChecks})`);
+        streamCheckTimeoutRef.current = setTimeout(checkRemoteStream, 1000);
+      } else {
+        console.log('❌ Remote stream not received after 30 seconds');
+        streamCheckTimeoutRef.current = null;
+      }
+    };
+    
+    checkRemoteStream();
   };
 
   const startCall = async () => {
@@ -124,23 +204,7 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
       }
 
       // リモートストリーム監視（改善版）
-      let streamCheckCount = 0;
-      const maxStreamChecks = 30; // 30秒間試行
-      
-      const checkRemoteStream = () => {
-        const remoteStream = webrtcServiceRef.current?.getRemoteStream();
-        if (remoteStream && remoteStream.getTracks().length > 0) {
-          setRemoteStream(remoteStream);
-          console.log('✅ Remote stream set in UI with', remoteStream.getTracks().length, 'tracks');
-        } else if (streamCheckCount < maxStreamChecks) {
-          streamCheckCount++;
-          console.log(`Checking remote stream... (${streamCheckCount}/${maxStreamChecks})`);
-          setTimeout(checkRemoteStream, 1000);
-        } else {
-          console.log('❌ Remote stream not received after 30 seconds');
-        }
-      };
-      checkRemoteStream();
+      startRemoteStreamMonitoring();
       
     } catch (error) {
       console.error('Failed to start call:', error);
@@ -171,23 +235,7 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
       }
 
       // リモートストリーム監視（改善版）
-      let streamCheckCount = 0;
-      const maxStreamChecks = 30; // 30秒間試行
-      
-      const checkRemoteStream = () => {
-        const remoteStream = webrtcServiceRef.current?.getRemoteStream();
-        if (remoteStream && remoteStream.getTracks().length > 0) {
-          setRemoteStream(remoteStream);
-          console.log('✅ Remote stream set in UI with', remoteStream.getTracks().length, 'tracks');
-        } else if (streamCheckCount < maxStreamChecks) {
-          streamCheckCount++;
-          console.log(`Checking remote stream... (${streamCheckCount}/${maxStreamChecks})`);
-          setTimeout(checkRemoteStream, 1000);
-        } else {
-          console.log('❌ Remote stream not received after 30 seconds');
-        }
-      };
-      checkRemoteStream();
+      startRemoteStreamMonitoring();
       
     } catch (error) {
       console.error('Failed to join call:', error);
@@ -201,28 +249,26 @@ const VideoCallInterface: React.FC<VideoCallInterfaceProps> = ({ chatRoomId, onC
     if (!session || !webrtcServiceRef.current) return;
 
     try {
+      // クリーンアップ開始
+      isCleaningUpRef.current = true;
+      
       // WebRTC サービスで通話終了
       await webrtcServiceRef.current.endCall();
       
-      // ローカルストリーム停止
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-        setLocalStream(null);
-      }
+      // すべてのリスナーとタイマーをクリーンアップ
+      cleanupAllListeners();
       
       // 状態リセット
       setSession(null);
       setIsInCall(false);
-      setRemoteStream(null);
-      
-      // サービスクリーンアップ
-      webrtcServiceRef.current.cleanup();
-      webrtcServiceRef.current = null;
       
       onCallEnd?.();
     } catch (error) {
       console.error('Failed to end call:', error);
       alert('通話の終了に失敗しました。');
+    } finally {
+      // クリーンアップ完了
+      isCleaningUpRef.current = false;
     }
   };
 

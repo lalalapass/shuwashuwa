@@ -25,6 +25,10 @@ export class WebRTCService {
   private chatRoomId: string;
   private isCaller: boolean = false;
   private unsubscribe: (() => void) | null = null;
+  private iceCandidatesUnsubscribe: (() => void) | null = null;
+  private connectionRetryCount: number = 0;
+  private maxConnectionRetries: number = 3;
+  private isCleaningUp: boolean = false;
 
   constructor(userId: string, chatRoomId: string) {
     this.userId = userId;
@@ -118,10 +122,19 @@ export class WebRTCService {
   // 通話終了
   async endCall(): Promise<void> {
     try {
+      // クリーンアップ開始
+      this.isCleaningUp = true;
+      
       // ローカルストリーム停止
       if (this.localStream) {
         this.localStream.getTracks().forEach(track => track.stop());
         this.localStream = null;
+      }
+
+      // リモートストリーム停止
+      if (this.remoteStream) {
+        this.remoteStream.getTracks().forEach(track => track.stop());
+        this.remoteStream = null;
       }
 
       // ピアコネクション終了
@@ -136,14 +149,14 @@ export class WebRTCService {
         this.roomId = null;
       }
 
-      // 監視停止
-      if (this.unsubscribe) {
-        this.unsubscribe();
-        this.unsubscribe = null;
-      }
+      // すべてのリスナー停止
+      this.cleanup();
     } catch (error) {
       console.error('Failed to end call:', error);
       throw error;
+    } finally {
+      // リトライカウントをリセット
+      this.connectionRetryCount = 0;
     }
   }
 
@@ -202,16 +215,31 @@ export class WebRTCService {
       
       if (state === 'connected') {
         console.log('✅ WebRTC connection established!');
+        // 接続成功時はリトライカウントをリセット
+        this.connectionRetryCount = 0;
       } else if (state === 'connecting') {
         console.log('🔄 WebRTC connecting...');
       } else if (state === 'failed') {
         console.log('❌ WebRTC connection failed - attempting to restart ICE');
+        
+        // クリーンアップ中は何もしない
+        if (this.isCleaningUp) return;
+        
+        // 最大再試行回数をチェック
+        if (this.connectionRetryCount >= this.maxConnectionRetries) {
+          console.log('❌ Maximum connection retry attempts reached. Giving up.');
+          return;
+        }
+        
+        this.connectionRetryCount++;
+        console.log(`🔄 Retry attempt ${this.connectionRetryCount}/${this.maxConnectionRetries}`);
+        
         // ICE接続を再開
         this.peerConnection?.restartIce();
         
         // 5秒後に接続状態を再チェック
         setTimeout(() => {
-          if (this.peerConnection?.connectionState === 'failed') {
+          if (this.peerConnection?.connectionState === 'failed' && !this.isCleaningUp) {
             console.log('🔄 Attempting to recreate peer connection...');
             this.recreatePeerConnection();
           }
@@ -299,7 +327,10 @@ export class WebRTCService {
 
     // リモートICE候補監視
     const remoteCandidatesCollection = collection(db, 'rooms', this.roomId, remoteName);
-    onSnapshot(remoteCandidatesCollection, (snapshot) => {
+    this.iceCandidatesUnsubscribe = onSnapshot(remoteCandidatesCollection, (snapshot) => {
+      // クリーンアップ中は処理しない
+      if (this.isCleaningUp) return;
+      
       snapshot.docChanges().forEach(async (change) => {
         if (change.type === 'added') {
           const candidateData = change.doc.data();
@@ -312,6 +343,13 @@ export class WebRTCService {
           }
         }
       });
+    }, (error) => {
+      console.error('Error in ICE candidates listener:', error);
+      // エラー時もリスナーを停止
+      if (this.iceCandidatesUnsubscribe) {
+        this.iceCandidatesUnsubscribe();
+        this.iceCandidatesUnsubscribe = null;
+      }
     });
   }
 
@@ -401,15 +439,41 @@ export class WebRTCService {
 
   // クリーンアップ
   cleanup(): void {
+    // クリーンアップ開始
+    this.isCleaningUp = true;
+    
+    // ローカルストリーム停止
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => track.stop());
+      this.localStream = null;
     }
+    
+    // リモートストリーム停止
+    if (this.remoteStream) {
+      this.remoteStream.getTracks().forEach(track => track.stop());
+      this.remoteStream = null;
+    }
+    
+    // ピアコネクション終了
     if (this.peerConnection) {
       this.peerConnection.close();
+      this.peerConnection = null;
     }
+    
+    // ルーム監視リスナー停止
     if (this.unsubscribe) {
       this.unsubscribe();
+      this.unsubscribe = null;
     }
+    
+    // ICE候補監視リスナー停止
+    if (this.iceCandidatesUnsubscribe) {
+      this.iceCandidatesUnsubscribe();
+      this.iceCandidatesUnsubscribe = null;
+    }
+    
+    // リトライカウントをリセット
+    this.connectionRetryCount = 0;
   }
 }
 

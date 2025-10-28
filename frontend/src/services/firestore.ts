@@ -304,7 +304,7 @@ export const friendRequestsFirestoreApi = {
     return { request };
   },
 
-  // 友達リクエスト一覧取得
+  // 友達リクエスト一覧取得（受信したリクエスト）
   getRequests: async (userId: string): Promise<{ requests: FriendRequest[] }> => {
     const q = query(
       collection(db, 'friendRequests'),
@@ -335,6 +335,46 @@ export const friendRequestsFirestoreApi = {
         senderId: data.senderId,
         receiverId: data.receiverId,
         senderUsername: senderUsername,
+        message: data.message,
+        status: data.status,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
+      });
+    }
+    
+    return { requests };
+  },
+
+  // 送信した友達リクエスト一覧取得
+  getSentRequests: async (userId: string): Promise<{ requests: FriendRequest[] }> => {
+    const q = query(
+      collection(db, 'friendRequests'),
+      where('senderId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const snapshot = await getDocs(q);
+    const requests: FriendRequest[] = [];
+    
+    for (const docSnapshot of snapshot.docs) {
+      const data = docSnapshot.data();
+      
+      // 受信者のユーザー情報を取得
+      let receiverUsername = 'Unknown User';
+      try {
+        const receiverDoc = await getDoc(doc(db, 'users', data.receiverId));
+        if (receiverDoc.exists()) {
+          receiverUsername = receiverDoc.data().username || 'Unknown User';
+        }
+      } catch (error) {
+        console.error('Failed to get receiver info:', error);
+      }
+      
+      requests.push({
+        id: docSnapshot.id,
+        senderId: data.senderId,
+        receiverId: data.receiverId,
+        senderUsername: receiverUsername, // 送信したリクエストでは受信者名を表示
         message: data.message,
         status: data.status,
         createdAt: data.createdAt?.toDate() || new Date(),

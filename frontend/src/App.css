@@ -891,6 +891,53 @@ button:disabled {
   color: #2c3e50;
 }
 
+.requests-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.tab-navigation {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: stretch;
+  flex-wrap: nowrap;
+  flex-direction: row;
+  width: 100%;
+}
+
+.tab-button {
+  background: linear-gradient(135deg, #f8fbff 0%, #e8f2ff 100%);
+  border: 2px solid #e8f2ff;
+  border-radius: 12px;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  color: #357abd;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+}
+
+.tab-button:hover {
+  background: linear-gradient(135deg, #e8f2ff 0%, #d0e7ff 100%);
+  transform: translateY(-1px);
+  border-color: #4a90e2;
+}
+
+.tab-button.active {
+  background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+  color: white;
+  border-color: #4a90e2;
+  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+}
+
 .requests-list {
   display: flex;
   flex-direction: column;
@@ -898,10 +945,17 @@ button:disabled {
 }
 
 .request-card {
-  background: white;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
   padding: 1.5rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(74, 144, 226, 0.1);
+  border: 1px solid rgba(74, 144, 226, 0.1);
+  transition: all 0.3s ease;
+}
+
+.request-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(74, 144, 226, 0.15);
 }
 
 .request-header {
@@ -918,16 +972,18 @@ button:disabled {
 }
 
 .request-date {
-  color: #666;
+  color: #7ba7d9;
   font-size: 0.875rem;
+  font-weight: 500;
 }
 
 .request-message {
   margin: 1rem 0;
   padding: 1rem;
-  background-color: #f8f9fa;
-  border-radius: 4px;
-  border-left: 4px solid #007bff;
+  background: linear-gradient(135deg, #f8fbff 0%, #e8f2ff 100%);
+  border-radius: 12px;
+  border-left: 4px solid #4a90e2;
+  box-shadow: 0 2px 8px rgba(74, 144, 226, 0.1);
 }
 
 .request-actions {
@@ -936,35 +992,130 @@ button:disabled {
 }
 
 .accept-button {
-  background-color: #28a745;
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
   color: white;
   border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
   cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
 }
 
 .accept-button:hover {
-  background-color: #218838;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
 }
 
 .reject-button {
-  background-color: #dc3545;
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
   color: white;
   border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
   cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
 }
 
 .reject-button:hover {
-  background-color: #c82333;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+}
+
+/* Sent Request Card */
+.sent-request-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fbff 100%);
+  padding: 1.5rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(74, 144, 226, 0.1);
+  border: 1px solid rgba(74, 144, 226, 0.1);
+  transition: all 0.3s ease;
+}
+
+.sent-request-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(74, 144, 226, 0.15);
+}
+
+.receiver-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.request-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.status-pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-accepted {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-rejected {
+  background: #f8d7da;
+  color: #721c24;
 }
 
 .no-requests {
   text-align: center;
-  color: #666;
+  color: #7ba7d9;
   padding: 3rem;
+  font-style: italic;
+}
+
+/* Status Filter */
+.status-filter {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, #f8fbff 0%, #e8f2ff 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(74, 144, 226, 0.1);
+}
+
+.status-filter label {
+  font-weight: 500;
+  color: #357abd;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.status-select {
+  padding: 0.5rem 1rem;
+  border: 2px solid #e8f2ff;
+  border-radius: 8px;
+  background: white;
+  color: #357abd;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 150px;
+}
+
+.status-select:focus {
+  outline: none;
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.status-select:hover {
+  border-color: #4a90e2;
+  background: #fafcff;
 }
 
 /* Chat Page */
@@ -3003,13 +3154,16 @@ button:disabled {
   }
   
   .tab-navigation {
-    flex-direction: column;
+    flex-direction: row !important;
     gap: 0.5rem;
+    flex-wrap: nowrap;
+    width: 100%;
+    justify-content: stretch;
   }
   
   .tab-navigation .tab-button {
-    width: 100%;
-    min-width: auto;
+    flex: 1;
+    min-width: 0;
   }
   
   .button-group {
@@ -3076,6 +3230,55 @@ button:disabled {
   .nav-actions .nav-link {
     width: 100%;
     justify-content: center;
+  }
+
+  /* Requests page responsive */
+  .requests-page {
+    padding: 1rem;
+  }
+
+  .tab-navigation {
+    flex-direction: row !important;
+    gap: 0.5rem;
+    justify-content: stretch;
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+
+  .tab-button {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .request-card,
+  .sent-request-card {
+    padding: 1rem;
+  }
+
+  .request-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .accept-button,
+  .reject-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .status-filter {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .status-filter label {
+    text-align: center;
+  }
+
+  .status-select {
+    width: 100%;
+    min-width: auto;
   }
 }
 

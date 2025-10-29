@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useCallback, useState, useRef, ReactNode } from 'react';
 import { useNotificationCounts } from '../hooks/useNotificationCounts';
 
 interface RefreshContextType {
@@ -23,20 +23,16 @@ interface RefreshProviderProps {
 }
 
 export const RefreshProvider: React.FC<RefreshProviderProps> = ({ children }) => {
-  const [refreshFunctions, setRefreshFunctions] = useState<Map<string, () => void | Promise<void>>>(new Map());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const refreshFunctionsRef = useRef<Map<string, () => void | Promise<void>>>(new Map());
   const { refreshCounts } = useNotificationCounts();
 
   const registerRefreshFunction = useCallback((key: string, refreshFn: () => void | Promise<void>) => {
-    setRefreshFunctions(prev => new Map(prev.set(key, refreshFn)));
+    refreshFunctionsRef.current.set(key, refreshFn);
   }, []);
 
   const unregisterRefreshFunction = useCallback((key: string) => {
-    setRefreshFunctions(prev => {
-      const newMap = new Map(prev);
-      newMap.delete(key);
-      return newMap;
-    });
+    refreshFunctionsRef.current.delete(key);
   }, []);
 
   const refreshAll = useCallback(async () => {
@@ -48,7 +44,7 @@ export const RefreshProvider: React.FC<RefreshProviderProps> = ({ children }) =>
       refreshCounts();
       
       // 全ての登録された更新関数を並列実行
-      const refreshPromises = Array.from(refreshFunctions.values()).map(fn => 
+      const refreshPromises = Array.from(refreshFunctionsRef.current.values()).map(fn => 
         Promise.resolve(fn()).catch(error => {
           console.error('Refresh function failed:', error);
         })
@@ -60,7 +56,7 @@ export const RefreshProvider: React.FC<RefreshProviderProps> = ({ children }) =>
     } finally {
       setIsRefreshing(false);
     }
-  }, [refreshFunctions, isRefreshing]);
+  }, [refreshCounts, isRefreshing]);
 
   return (
     <RefreshContext.Provider value={{

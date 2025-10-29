@@ -37,16 +37,13 @@ const MessageList: React.FC<MessageListProps> = ({ messages, currentUserId }) =>
               className={`message ${message.senderId === currentUserId ? 'own' : 'other'}`}
             >
               <div className="message-content">
-                <div className="message-header">
-                  <span className="sender">{message.senderUsername}</span>
-                  <span className="time">{formatTime(message.createdAt?.toISOString() || new Date().toISOString())}</span>
-                </div>
                 <div className="message-body">
                   {message.messageText && (
                     <p className="message-text">{message.messageText}</p>
                   )}
                 </div>
               </div>
+              <span className="message-time">{formatTime(message.createdAt?.toISOString() || new Date().toISOString())}</span>
             </div>
           ))}
         </div>

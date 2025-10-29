@@ -19,7 +19,6 @@ const ProfilePage: React.FC = () => {
     profileText: '',
     gender: '',
     ageGroup: '',
-    iconUrl: '',
   });
 
   useEffect(() => {
@@ -66,7 +65,6 @@ const ProfilePage: React.FC = () => {
         profileText: profile.profileText || '',
         gender: profile.gender || '',
         ageGroup: profile.ageGroup || '',
-        iconUrl: profile.iconUrl || '',
       });
     } catch (error) {
       console.error('Failed to load profile:', error);
@@ -102,7 +100,6 @@ const ProfilePage: React.FC = () => {
         profileText: response.profile.profileText || '',
         gender: response.profile.gender || '',
         ageGroup: response.profile.ageGroup || '',
-        iconUrl: response.profile.iconUrl || '',
       });
       
       // AuthContext の user も更新（他のコンポーネントで最新データを使用するため）
@@ -162,13 +159,9 @@ const ProfilePage: React.FC = () => {
         <div className="profile-info">
           <div className="profile-header">
             <div className="profile-avatar">
-              {profile.iconUrl ? (
-                <img src={profile.iconUrl} alt="プロフィール画像" />
-              ) : (
-                <div className="avatar-placeholder">
-                  {profile.username.charAt(0).toUpperCase()}
-                </div>
-              )}
+              <div className="avatar-placeholder">
+                {profile.username.charAt(0).toUpperCase()}
+              </div>
             </div>
             <div className="profile-basic">
               <h3>{profile.username}</h3>
@@ -254,17 +247,6 @@ const ProfilePage: React.FC = () => {
                 onChange={(e) => handleInputChange('profileText', e.target.value)}
                 placeholder="あなたについて教えてください..."
                 rows={4}
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="iconUrl">プロフィール画像URL</label>
-              <input
-                type="url"
-                id="iconUrl"
-                value={formData.iconUrl}
-                onChange={(e) => handleInputChange('iconUrl', e.target.value)}
-                placeholder="https://example.com/image.jpg"
               />
             </div>
           </div>

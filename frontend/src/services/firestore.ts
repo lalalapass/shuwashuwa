@@ -51,7 +51,6 @@ const getUsersBatch = async (userIds: string[]): Promise<Map<string, User>> => {
             profileText: data.profileText,
             gender: data.gender,
             ageGroup: data.ageGroup,
-            iconUrl: data.iconUrl,
             createdAt: data.createdAt?.toDate() || new Date(),
             updatedAt: data.updatedAt?.toDate() || new Date(),
           };
@@ -105,7 +104,6 @@ export const usersFirestoreApi = {
           profileText: data.profileText,
           gender: data.gender,
           ageGroup: data.ageGroup,
-          iconUrl: data.iconUrl,
           createdAt: data.createdAt?.toDate() || new Date(),
           updatedAt: data.updatedAt?.toDate() || new Date(),
         });
@@ -158,7 +156,6 @@ export const usersFirestoreApi = {
       profileText: data.profileText,
       gender: data.gender,
       ageGroup: data.ageGroup,
-      iconUrl: data.iconUrl,
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date(),
     };
@@ -173,7 +170,6 @@ export const usersFirestoreApi = {
     profileText?: string;
     gender?: string;
     ageGroup?: string;
-    iconUrl?: string;
   }): Promise<{ profile: Profile }> => {
     const userRef = doc(db, 'users', userId);
     await updateDoc(userRef, {
@@ -193,7 +189,6 @@ export const usersFirestoreApi = {
       profileText: userData.profileText,
       gender: userData.gender,
       ageGroup: userData.ageGroup,
-      iconUrl: userData.iconUrl,
       createdAt: userData.createdAt?.toDate(),
       updatedAt: userData.updatedAt?.toDate(),
     };
@@ -236,7 +231,6 @@ export const postsFirestoreApi = {
         userId: data.userId,
         username: username,
         contentText: data.contentText,
-        contentVideoUrl: data.contentVideoUrl,
         likeCount: data.likesCount || 0,
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date(),
@@ -250,12 +244,10 @@ export const postsFirestoreApi = {
   createPost: async (data: { 
     userId: string;
     contentText?: string; 
-    contentVideoUrl?: string; 
   }): Promise<{ post: Post }> => {
     const postData = {
       userId: data.userId,
       contentText: data.contentText || '',
-      contentVideoUrl: data.contentVideoUrl || '',
       likesCount: 0,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -267,7 +259,6 @@ export const postsFirestoreApi = {
       userId: data.userId,
       username: '', // 後でユーザー情報から取得
       contentText: data.contentText || '',
-      contentVideoUrl: data.contentVideoUrl || '',
       likeCount: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -656,7 +647,6 @@ export const chatFirestoreApi = {
         senderId: data.senderId,
         senderUsername: senderUsername,
         messageText: data.messageText,
-        videoUrl: data.videoUrl,
         createdAt: data.createdAt?.toDate() || new Date(),
         readBy: data.readBy || {},
       });
@@ -729,7 +719,6 @@ export const chatFirestoreApi = {
   sendMessage: async (roomId: string, data: {
     senderId: string;
     messageText?: string;
-    videoUrl?: string;
   }): Promise<{ message: ChatMessage }> => {
     const messageData: any = {
       senderId: data.senderId,
@@ -740,9 +729,6 @@ export const chatFirestoreApi = {
     // undefined の場合はフィールドを追加しない
     if (data.messageText !== undefined) {
       messageData.messageText = data.messageText;
-    }
-    if (data.videoUrl !== undefined) {
-      messageData.videoUrl = data.videoUrl;
     }
     
     const docRef = await addDoc(collection(db, 'chatRooms', roomId, 'messages'), messageData);
@@ -764,7 +750,6 @@ export const chatFirestoreApi = {
       senderId: data.senderId,
       senderUsername: senderUsername,
       messageText: data.messageText,
-      videoUrl: data.videoUrl,
       createdAt: new Date(),
       readBy: { [data.senderId]: true },
     };

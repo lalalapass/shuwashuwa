@@ -7,7 +7,6 @@ export interface User {
   profileText?: string;
   gender?: string;
   ageGroup?: string;
-  iconUrl?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -17,7 +16,6 @@ export interface Post {
   userId: string;
   username: string;
   contentText?: string;
-  contentVideoUrl?: string;
   createdAt?: Date;
   updatedAt?: Date;
   likeCount: number;
@@ -52,7 +50,6 @@ export interface ChatMessage {
   senderId: string;
   senderUsername: string;
   messageText?: string;
-  videoUrl?: string;
   createdAt?: Date;
   readBy?: { [userId: string]: boolean }; // 各ユーザーの既読フラグ
 }
@@ -71,7 +68,6 @@ export interface Profile {
   profileText?: string;
   gender?: string;
   ageGroup?: string;
-  iconUrl?: string;
   createdAt?: Date;
   updatedAt?: Date;
   postCount?: number;

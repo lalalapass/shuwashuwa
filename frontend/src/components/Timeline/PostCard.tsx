@@ -68,12 +68,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLikeUpdate }) => {
         </div>
         <div className="speech-bubble">
           {post.contentText && <p>{post.contentText}</p>}
-          {post.contentVideoUrl && (
-            <video controls className="post-video">
-              <source src={post.contentVideoUrl} type="video/mp4" />
-              お使いのブラウザは動画をサポートしていません。
-            </video>
-          )}
         </div>
         <div className="bubble-like-container">
           <button

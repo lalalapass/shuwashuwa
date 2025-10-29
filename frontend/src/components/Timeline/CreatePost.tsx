@@ -9,13 +9,12 @@ interface CreatePostProps {
 
 const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
   const [contentText, setContentText] = useState('');
-  const [contentVideoUrl, setContentVideoUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!contentText.trim() && !contentVideoUrl.trim()) return;
+    if (!contentText.trim()) return;
     if (!user) {
       alert('ログインが必要です');
       return;
@@ -27,8 +26,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
       const { postsFirestoreApi } = await import('../../services/firestore');
       const response = await postsFirestoreApi.createPost({
         userId: user.uid,
-        contentText: contentText.trim() || '',
-        contentVideoUrl: contentVideoUrl.trim() || '',
+        contentText: contentText.trim(),
       });
       
       // ユーザー名を追加
@@ -39,7 +37,6 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
       
       onPostCreated(postWithUsername);
       setContentText('');
-      setContentVideoUrl('');
     } catch (error) {
       console.error('Failed to create post:', error);
       alert('投稿の作成に失敗しました');
@@ -60,17 +57,9 @@ const CreatePost: React.FC<CreatePostProps> = ({ onPostCreated }) => {
             rows={3}
           />
         </div>
-        <div className="form-group">
-          <input
-            type="url"
-            placeholder="動画URL（任意）"
-            value={contentVideoUrl}
-            onChange={(e) => setContentVideoUrl(e.target.value)}
-          />
-        </div>
         <button
           type="submit"
-          disabled={isSubmitting || (!contentText.trim() && !contentVideoUrl.trim())}
+          disabled={isSubmitting || !contentText.trim()}
         >
           {isSubmitting ? '投稿中...' : '投稿する'}
         </button>

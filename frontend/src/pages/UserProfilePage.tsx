@@ -42,7 +42,6 @@ const UserProfilePage: React.FC = () => {
         profileText: user.profileText,
         gender: user.gender,
         ageGroup: user.ageGroup,
-        iconUrl: user.iconUrl,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       };
@@ -158,13 +157,9 @@ const UserProfilePage: React.FC = () => {
           
           <div className="profile-header">
             <div className="profile-avatar">
-              {profile.iconUrl ? (
-                <img src={profile.iconUrl} alt="プロフィール画像" />
-              ) : (
-                <div className="avatar-placeholder">
-                  {profile.username.charAt(0).toUpperCase()}
-                </div>
-              )}
+              <div className="avatar-placeholder">
+                {profile.username.charAt(0).toUpperCase()}
+              </div>
             </div>
             <div className="profile-info">
               <h2>{profile.username}</h2>

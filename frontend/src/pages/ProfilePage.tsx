@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 // import { profileApi } from '../services/api'; // Firebase移行により不要
 import { useAuth } from '../context/AuthContext';
+import { usersFirestoreApi } from '../services/firestore';
 import type { Profile } from '../types/api';
 
 const ProfilePage: React.FC = () => {
@@ -9,7 +10,7 @@ const ProfilePage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const { user: currentUser, loading: authLoading } = useAuth();
+  const { user: currentUser, loading: authLoading, refreshUser } = useAuth();
 
   // Form state
   const [formData, setFormData] = useState({
@@ -22,10 +23,11 @@ const ProfilePage: React.FC = () => {
   });
 
   useEffect(() => {
-    if (!authLoading) {
+    if (!authLoading && currentUser?.uid) {
       loadProfile();
     }
-  }, [authLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, currentUser?.uid]);
 
   const loadProfile = async () => {
     setLoading(true);
@@ -38,19 +40,21 @@ const ProfilePage: React.FC = () => {
         return;
       }
 
-      // Firebase移行後は AuthContext の user オブジェクトから直接取得
+      // Firestore から直接最新のプロフィールデータを取得
+      const response = await usersFirestoreApi.getUser(currentUser.uid);
+      const user = response.user;
       const profile: Profile = {
-        id: currentUser.uid,
-        userId: currentUser.uid,
-        username: currentUser.username,
-        signLanguageLevel: currentUser.signLanguageLevel,
-        firstLanguage: currentUser.firstLanguage,
-        profileText: currentUser.profileText,
-        gender: currentUser.gender,
-        ageGroup: currentUser.ageGroup,
-        iconUrl: currentUser.iconUrl,
-        createdAt: new Date(), // Firebase移行後は適切な日付を設定
-        updatedAt: new Date(),
+        id: user.uid,
+        userId: user.uid,
+        username: user.username,
+        signLanguageLevel: user.signLanguageLevel,
+        firstLanguage: user.firstLanguage,
+        profileText: user.profileText,
+        gender: user.gender,
+        ageGroup: user.ageGroup,
+        iconUrl: user.iconUrl,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       };
       
       setProfile(profile);
@@ -85,8 +89,9 @@ const ProfilePage: React.FC = () => {
       }
 
       // Firebase移行後は直接 usersFirestoreApi.updateProfile を使用
-      const { usersFirestoreApi } = await import('../services/firestore');
       const response = await usersFirestoreApi.updateProfile(currentUser.uid, formData);
+      
+      // ローカルステートを更新
       setProfile(response.profile);
       setSuccess('プロフィールを更新しました！');
       
@@ -99,6 +104,10 @@ const ProfilePage: React.FC = () => {
         ageGroup: response.profile.ageGroup || '',
         iconUrl: response.profile.iconUrl || '',
       });
+      
+      // AuthContext の user も更新（他のコンポーネントで最新データを使用するため）
+      // 無限ループを避けるため、refreshUser のみ呼び出す（loadProfile は呼ばない）
+      await refreshUser();
     } catch (error: any) {
       console.error('Failed to update profile:', error);
       setError(error.message || 'プロフィールの更新に失敗しました');

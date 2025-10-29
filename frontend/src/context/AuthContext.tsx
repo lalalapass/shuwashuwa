@@ -26,6 +26,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, userData: Omit<User, 'uid'>) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
   loading: boolean;
 }
@@ -98,12 +99,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     await signOut(auth);
   };
 
+  const refreshUser = async () => {
+    if (!firebaseUser) return;
+    
+    try {
+      const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const userObj = { uid: firebaseUser.uid, ...userData } as User;
+        setUser(userObj);
+      }
+    } catch (error) {
+      console.error('Error refreshing user data from Firestore:', error);
+    }
+  };
+
   const value = {
     user,
     firebaseUser,
     login,
     register,
     logout,
+    refreshUser,
     isAuthenticated: !!firebaseUser,
     loading,
   };

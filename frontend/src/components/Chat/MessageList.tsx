@@ -45,14 +45,6 @@ const MessageList: React.FC<MessageListProps> = ({ messages, currentUserId }) =>
                   {message.messageText && (
                     <p className="message-text">{message.messageText}</p>
                   )}
-                  {message.videoUrl && (
-                    <div className="message-video">
-                      <video controls width="300">
-                        <source src={message.videoUrl} type="video/mp4" />
-                        お使いのブラウザは動画再生に対応していません。
-                      </video>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

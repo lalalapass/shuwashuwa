@@ -51,7 +51,6 @@ const ProfilePage: React.FC = () => {
         profileText: user.profileText,
         gender: user.gender,
         ageGroup: user.ageGroup,
-        iconUrl: user.iconUrl,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       };

@@ -25,7 +25,7 @@ export const useNotificationCounts = () => {
     }
   }, [currentUser, authLoading]);
 
-  const loadNotificationCounts = useCallback(async () => {
+  const loadNotificationCounts = async () => {
     if (!currentUser) {
       setLoading(false);
       return;
@@ -54,11 +54,11 @@ export const useNotificationCounts = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentUser]);
+  };
 
   const refreshCounts = useCallback(() => {
     loadNotificationCounts();
-  }, [loadNotificationCounts]);
+  }, [currentUser]);
 
   return {
     counts,

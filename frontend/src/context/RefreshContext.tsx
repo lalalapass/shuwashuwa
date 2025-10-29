@@ -1,10 +1,9 @@
 import React, { createContext, useContext, useCallback, useState, ReactNode } from 'react';
-import { useNotificationCounts } from '../hooks/useNotificationCounts';
 
 interface RefreshContextType {
   registerRefreshFunction: (key: string, refreshFn: () => void | Promise<void>) => void;
   unregisterRefreshFunction: (key: string) => void;
-  refreshAll: () => Promise<void>;
+  refreshAll: (notificationRefreshFn?: () => void | Promise<void>) => Promise<void>;
   isRefreshing: boolean;
 }
 
@@ -25,7 +24,6 @@ interface RefreshProviderProps {
 export const RefreshProvider: React.FC<RefreshProviderProps> = ({ children }) => {
   const [refreshFunctions, setRefreshFunctions] = useState<Map<string, () => void | Promise<void>>>(new Map());
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const { refreshCounts } = useNotificationCounts();
 
   const registerRefreshFunction = useCallback((key: string, refreshFn: () => void | Promise<void>) => {
     setRefreshFunctions(prev => new Map(prev.set(key, refreshFn)));
@@ -39,13 +37,17 @@ export const RefreshProvider: React.FC<RefreshProviderProps> = ({ children }) =>
     });
   }, []);
 
-  const refreshAll = useCallback(async () => {
+  const refreshAll = useCallback(async (notificationRefreshFn?: () => void | Promise<void>) => {
     if (isRefreshing) return; // 既に更新中の場合は何もしない
     
+    console.log('RefreshAll called with notificationRefreshFn:', !!notificationRefreshFn);
     setIsRefreshing(true);
     try {
-      // 通知カウントを更新
-      refreshCounts();
+      // 通知カウントを更新（引数で渡された関数を使用）
+      if (notificationRefreshFn) {
+        console.log('Calling notification refresh function');
+        await notificationRefreshFn();
+      }
       
       // 全ての登録された更新関数を並列実行
       const refreshPromises = Array.from(refreshFunctions.values()).map(fn => 

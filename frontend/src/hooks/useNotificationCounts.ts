@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { friendRequestsFirestoreApi, chatFirestoreApi } from '../services/firestore';
 import { useAuth } from '../context/AuthContext';
@@ -25,12 +25,13 @@ export const useNotificationCounts = () => {
     }
   }, [currentUser, authLoading]);
 
-  const loadNotificationCounts = async () => {
+  const loadNotificationCounts = useCallback(async () => {
     if (!currentUser) {
       setLoading(false);
       return;
     }
 
+    console.log('Loading notification counts for user:', currentUser.uid);
     setLoading(true);
     try {
       // バッチ読み取り: 友達リクエストとチャットルームを並列で取得
@@ -44,6 +45,11 @@ export const useNotificationCounts = () => {
         return total + (room.unreadCount || 0);
       }, 0);
 
+      console.log('Notification counts updated:', {
+        pendingRequests: pendingRequestsCount,
+        unreadChats: unreadChatsCount
+      });
+
       setCounts({
         pendingRequests: pendingRequestsCount,
         unreadChats: unreadChatsCount,
@@ -54,11 +60,14 @@ export const useNotificationCounts = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentUser?.uid]);
+
+  const loadNotificationCountsRef = useRef(loadNotificationCounts);
+  loadNotificationCountsRef.current = loadNotificationCounts;
 
   const refreshCounts = useCallback(() => {
-    loadNotificationCounts();
-  }, [currentUser]);
+    loadNotificationCountsRef.current();
+  }, []);
 
   return {
     counts,

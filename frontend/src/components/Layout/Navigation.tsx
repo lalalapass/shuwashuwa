@@ -17,7 +17,7 @@ const Navigation: React.FC = () => {
     if (isAuthenticated && user) {
       refreshCounts();
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user?.uid]);
 
   const NotificationBadge: React.FC<{ count: number }> = ({ count }) => {
     if (count === 0) return null;
@@ -61,7 +61,7 @@ const Navigation: React.FC = () => {
                 ログアウト
               </button>
               <button 
-                onClick={refreshAll} 
+                onClick={() => refreshAll(refreshCounts)} 
                 className="refresh-button"
                 title="全てのデータを更新"
                 disabled={isRefreshing}

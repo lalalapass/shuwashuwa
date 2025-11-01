@@ -149,6 +149,11 @@ const ProfilePage: React.FC = () => {
     ));
   };
 
+  const handleDeletePost = (postId: string) => {
+    // 無限ループを防ぐため、Firestoreから再取得せずローカルステートのみ更新
+    setMyPosts(myPosts.filter(post => post.id !== postId));
+  };
+
   // Helper functions for display (Firestore から取得した値は既に日本語のため不要)
 
   const formatDate = (dateString: string) => {
@@ -235,6 +240,8 @@ const ProfilePage: React.FC = () => {
                     key={post.id}
                     post={post}
                     onLikeUpdate={handleLikeUpdate}
+                    showMenu={true}
+                    onDelete={handleDeletePost}
                   />
                 ))}
               </div>

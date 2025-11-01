@@ -348,6 +348,66 @@ export const postsFirestoreApi = {
       return { liked: true };
     }
   },
+
+  // いいねした人を取得
+  getPostLikes: async (postId: string): Promise<{ users: User[] }> => {
+    const q = query(
+      collection(db, 'postLikes'),
+      where('postId', '==', postId),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const snapshot = await getDocs(q);
+    const userIds: string[] = [];
+    
+    snapshot.forEach((docSnapshot) => {
+      const data = docSnapshot.data();
+      if (data.userId) {
+        userIds.push(data.userId);
+      }
+    });
+    
+    if (userIds.length === 0) {
+      return { users: [] };
+    }
+    
+    // バッチ読み取り: ユーザー情報を並列で取得
+    const users = await getUsersBatch(userIds);
+    
+    // userIdsの順序を保持しながらユーザー配列を作成
+    const usersArray: User[] = [];
+    for (const userId of userIds) {
+      const user = users.get(userId);
+      if (user) {
+        usersArray.push(user);
+      }
+    }
+    
+    return { users: usersArray };
+  },
+
+  // 投稿削除
+  deletePost: async (postId: string): Promise<void> => {
+    const postRef = doc(db, 'posts', postId);
+    
+    // 投稿が存在するか確認
+    const postDoc = await getDoc(postRef);
+    if (!postDoc.exists()) {
+      throw new Error('投稿が見つかりません');
+    }
+    
+    // 投稿を削除
+    await deleteDoc(postRef);
+    
+    // 関連するいいねも削除（オプション: バックグラウンドで削除する場合はコメントアウト）
+    const likesQuery = query(
+      collection(db, 'postLikes'),
+      where('postId', '==', postId)
+    );
+    const likesSnapshot = await getDocs(likesQuery);
+    const deletePromises = likesSnapshot.docs.map(doc => deleteDoc(doc.ref));
+    await Promise.all(deletePromises);
+  },
 };
 
 // Friend Requests API

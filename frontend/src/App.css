@@ -451,14 +451,14 @@ button:disabled {
   border-bottom: 2px solid #f0f6ff;
 }
 
-.user-info {
+.post-header .user-info {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
 }
 
-.user-info strong {
+.post-header .user-info strong {
   font-weight: 600;
   color: #357abd;
   font-size: 1.1rem;
@@ -705,16 +705,21 @@ button:disabled {
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 1rem;
+  box-sizing: border-box;
 }
 
 .clear-filters {
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 1rem; /* Same vertical padding as input/select (0.5rem top/bottom) */
   background-color: #6c757d;
   color: white;
-  border: none;
+  border: 1px solid #ddd; /* Match border of input/select */
   border-radius: 4px;
   cursor: pointer;
-  align-self: flex-start;
+  font-size: 1rem; /* Match input/select font-size */
+  box-sizing: border-box;
+  /* Add margin-top to align with input/select position (label height + gap) */
+  margin-top: calc(1em + 0.5rem); /* Approximate label height + gap from filter-group */
+  align-self: start; /* Align to start of grid cell */
 }
 
 .clear-filters:hover {
@@ -765,8 +770,14 @@ button:disabled {
   flex-shrink: 0;
 }
 
-.user-info h3 {
-  margin-bottom: 0.5rem;
+.user-header .user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.user-header .user-info h3 {
+  margin-bottom: 0;
   color: #2c3e50;
 }
 
@@ -821,6 +832,34 @@ button:disabled {
   box-shadow: 0 6px 16px rgba(74, 144, 226, 0.4);
 }
 
+.request-sent-disabled {
+  background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 20px;
+  width: 100%;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(149, 165, 166, 0.3);
+  cursor: not-allowed;
+}
+
+.checking-request {
+  background: linear-gradient(135deg, #bdc3c7 0%, #95a5a6 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 20px;
+  width: 100%;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(189, 195, 199, 0.3);
+  cursor: wait;
+}
+
 .message-form {
   display: flex;
   flex-direction: column;
@@ -844,9 +883,10 @@ button:disabled {
   color: white;
   border: none;
   padding: 0.5rem 1rem;
-  border-radius: 4px;
+  border-radius: 20px;
   cursor: pointer;
   flex: 1;
+  min-width: 0; /* Allow flex item to shrink below content size */
 }
 
 .send-button:hover {
@@ -858,8 +898,11 @@ button:disabled {
   color: white;
   border: none;
   padding: 0.5rem 1rem;
-  border-radius: 4px;
+  border-radius: 20px;
   cursor: pointer;
+  flex-shrink: 0; /* Don't shrink */
+  width: auto;
+  min-width: 80px; /* Minimum width for cancel button */
 }
 
 .cancel-button:hover {
@@ -2260,9 +2303,12 @@ button:disabled {
 /* Features Grid */
 .features-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 2rem;
   margin-top: 2rem;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .feature-card {
@@ -2308,12 +2354,13 @@ button:disabled {
 
 .feature-card h3 {
   font-family: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', cursive;
-  font-size: 1.6rem;
+  font-size: 1.3rem;
   font-weight: 600;
   margin-bottom: 1rem;
   color: #2c3e50;
   text-shadow: 1px 1px 4px rgba(0,0,0,0.1);
   letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 .feature-card p {
@@ -2469,6 +2516,12 @@ button:disabled {
 }
 
 /* Responsive Design */
+@media (max-width: 1024px) {
+  .features-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
   .logo-text {
     font-size: 2.5rem;
@@ -2566,7 +2619,7 @@ button:disabled {
     font-size: 1rem;
   }
 
-  .user-info {
+  .post-header .user-info {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.25rem;
@@ -2636,24 +2689,31 @@ button:disabled {
   margin-bottom: 2rem;
   padding-bottom: 1rem;
   border-bottom: 2px solid #f0f6ff;
+  gap: 1rem;
 }
 
 .schedule-header h3 {
   color: #357abd;
   font-size: 1.3rem;
   margin: 0;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .create-schedule-button {
   background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
   color: white;
   border: none;
-  padding: 0.75rem 1.5rem;
+  padding: 0.6rem 1rem;
   border-radius: 12px;
   cursor: pointer;
   font-weight: 500;
+  font-size: 0.9rem;
   transition: all 0.3s ease;
   box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: fit-content;
 }
 
 .create-schedule-button:hover {

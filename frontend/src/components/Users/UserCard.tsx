@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { friendRequestsFirestoreApi } from '../../services/firestore';
 import { useAuth } from '../../context/AuthContext';
@@ -14,10 +14,52 @@ const UserCard: React.FC<UserCardProps> = ({ user, currentUserId }) => {
   const [isSending, setIsSending] = useState(false);
   const [message, setMessage] = useState('');
   const [showMessageForm, setShowMessageForm] = useState(false);
+  const [checkingRequest, setCheckingRequest] = useState(true);
   const { user: currentUser } = useAuth();
+  const checkedKeyRef = useRef<string | null>(null); // チェック済みのキー（無限ループ防止）
+
+  // 送信済みリクエストをチェック（無限ループを避けるため、依存配列はcurrentUser.uidとuser.idのみ）
+  useEffect(() => {
+    // チェック用のキーを生成（currentUser.uidとuser.idの組み合わせ）
+    const checkKey = currentUser?.uid && user.id ? `${currentUser.uid}-${user.id}` : null;
+    
+    // 同じキーで既にチェック済みの場合は再実行しない（無限ループ防止）
+    if (checkKey && checkedKeyRef.current === checkKey) {
+      return;
+    }
+
+    const checkExistingRequest = async () => {
+      if (!currentUser || !user.id || user.id === currentUser.uid) {
+        setCheckingRequest(false);
+        if (checkKey) {
+          checkedKeyRef.current = checkKey;
+        }
+        return;
+      }
+
+      // チェック開始をマーク（同じキーでの重複実行を防止）
+      if (checkKey) {
+        checkedKeyRef.current = checkKey;
+      }
+
+      try {
+        const result = await friendRequestsFirestoreApi.checkRequestExists(currentUser.uid, user.id);
+        // リクエストが存在し、かつstatusが'pending'または'accepted'の場合は送信済みとみなす
+        if (result.exists && result.request && (result.request.status === 'pending' || result.request.status === 'accepted')) {
+          setIsRequestSent(true);
+        }
+      } catch (error) {
+        console.error('Failed to check existing request:', error);
+      } finally {
+        setCheckingRequest(false);
+      }
+    };
+
+    checkExistingRequest();
+  }, [currentUser?.uid, user.id]); // 依存配列を最小限にすることで無限ループを防止
 
   const handleSendRequest = async () => {
-    if (isSending) return;
+    if (isSending || isRequestSent) return;
     
     if (!currentUser) {
       alert('ログインが必要です');
@@ -27,6 +69,17 @@ const UserCard: React.FC<UserCardProps> = ({ user, currentUserId }) => {
     setIsSending(true);
 
     try {
+      // 念のため再度重複チェック
+      const existingCheck = await friendRequestsFirestoreApi.checkRequestExists(currentUser.uid, user.id);
+      if (existingCheck.exists && existingCheck.request && (existingCheck.request.status === 'pending' || existingCheck.request.status === 'accepted')) {
+        setIsRequestSent(true);
+        setShowMessageForm(false);
+        setMessage('');
+        alert('このユーザーにはすでにリクエストが送信されています');
+        setIsSending(false);
+        return;
+      }
+
       await friendRequestsFirestoreApi.sendRequest({
         senderId: currentUser.uid,
         receiverId: user.id,
@@ -35,9 +88,15 @@ const UserCard: React.FC<UserCardProps> = ({ user, currentUserId }) => {
       setIsRequestSent(true);
       setShowMessageForm(false);
       setMessage('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send friend request:', error);
-      alert('リクエストの送信に失敗しました');
+      const errorMessage = error?.message || 'リクエストの送信に失敗しました';
+      if (errorMessage.includes('すでにリクエストが送信されています')) {
+        setIsRequestSent(true);
+        setShowMessageForm(false);
+        setMessage('');
+      }
+      alert(errorMessage);
     } finally {
       setIsSending(false);
     }
@@ -125,9 +184,11 @@ const UserCard: React.FC<UserCardProps> = ({ user, currentUserId }) => {
       )}
 
       <div className="user-actions">
-        {isRequestSent ? (
-          <div className="request-sent">
-            ✓ リクエストを送信しました
+        {checkingRequest ? (
+          <div className="checking-request">確認中...</div>
+        ) : isRequestSent ? (
+          <div className="request-sent-disabled">
+            会話リクエスト送信済み
           </div>
         ) : showMessageForm ? (
           <div className="message-form">

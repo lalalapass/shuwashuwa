@@ -137,7 +137,7 @@ const ChatDetailPage: React.FC = () => {
             <button onClick={handleBackToList} className="back-button">
               ← チャット一覧に戻る
             </button>
-            <h2 className="page-title">{room.otherUsername}とのチャット</h2>
+            <h2 className="page-title">{room.otherUsername}さんとのチャット</h2>
           </div>
         </div>
 

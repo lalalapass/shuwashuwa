@@ -61,7 +61,6 @@ const UsersPage: React.FC = () => {
           <div className="loading">読み込み中...</div>
         ) : (
           <div className="users-list">
-            <h3>ユーザー一覧 ({users.length}人)</h3>
             {users.length === 0 ? (
               <div className="no-users">該当するユーザーが見つかりませんでした</div>
             ) : (

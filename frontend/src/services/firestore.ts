@@ -320,6 +320,12 @@ export const friendRequestsFirestoreApi = {
     receiverId: string;
     message?: string;
   }): Promise<{ request: FriendRequest }> => {
+    // 重複チェック：すでにpendingまたはacceptedのリクエストが存在する場合はエラー
+    const existingCheck = await friendRequestsFirestoreApi.checkRequestExists(data.senderId, data.receiverId);
+    if (existingCheck.exists && existingCheck.request && (existingCheck.request.status === 'pending' || existingCheck.request.status === 'accepted')) {
+      throw new Error('このユーザーにはすでにリクエストが送信されています');
+    }
+
     const requestData = {
       senderId: data.senderId,
       receiverId: data.receiverId,
@@ -437,6 +443,49 @@ export const friendRequestsFirestoreApi = {
     }
     
     return { requests };
+  },
+
+  // 特定のユーザーへの送信済みリクエストをチェック
+  checkRequestExists: async (senderId: string, receiverId: string): Promise<{ exists: boolean; request?: FriendRequest }> => {
+    const q = query(
+      collection(db, 'friendRequests'),
+      where('senderId', '==', senderId),
+      where('receiverId', '==', receiverId)
+    );
+    
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) {
+      return { exists: false };
+    }
+    
+    // 最初のリクエストを返す（通常は1つしかないはず）
+    const docSnapshot = snapshot.docs[0];
+    const data = docSnapshot.data();
+    
+    // 送信者のユーザー名を取得
+    let senderUsername = 'Unknown User';
+    try {
+      const senderDoc = await getDoc(doc(db, 'users', senderId));
+      if (senderDoc.exists()) {
+        senderUsername = senderDoc.data().username || 'Unknown User';
+      }
+    } catch (error) {
+      console.error('Failed to get sender info:', error);
+    }
+    
+    const request: FriendRequest = {
+      id: docSnapshot.id,
+      senderId: data.senderId,
+      senderUsername: senderUsername,
+      receiverId: data.receiverId,
+      message: data.message,
+      status: data.status,
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || new Date(),
+    };
+    
+    return { exists: true, request };
   },
 
   // 友達リクエスト処理

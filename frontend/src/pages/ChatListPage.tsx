@@ -62,9 +62,6 @@ const ChatListPage: React.FC = () => {
   return (
     <div className="chat-list-page">
       <div className="chat-list-container">
-        <div className="chat-list-header">
-          <h2>チャット</h2>
-        </div>
         <ChatRoomList
           rooms={rooms}
           onRoomSelect={handleRoomSelect}

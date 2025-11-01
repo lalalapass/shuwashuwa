@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 // import { profileApi } from '../services/api'; // Firebase移行により不要
 import { useAuth } from '../context/AuthContext';
-import { usersFirestoreApi } from '../services/firestore';
-import type { Profile } from '../types/api';
+import { usersFirestoreApi, postsFirestoreApi } from '../services/firestore';
+import PostCard from '../components/Timeline/PostCard';
+import type { Profile, Post } from '../types/api';
 
 const ProfilePage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'posts' | 'edit'>('posts');
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [myPosts, setMyPosts] = useState<Post[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
   const { user: currentUser, loading: authLoading, refreshUser } = useAuth();
 
   // Form state
@@ -27,6 +31,13 @@ const ProfilePage: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, currentUser?.uid]);
+
+  useEffect(() => {
+    if (!authLoading && currentUser?.uid && activeTab === 'posts') {
+      loadMyPosts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, authLoading, currentUser?.uid]);
 
   const loadProfile = async () => {
     setLoading(true);
@@ -116,6 +127,28 @@ const ProfilePage: React.FC = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const loadMyPosts = async () => {
+    if (!currentUser?.uid) return;
+    
+    setLoadingPosts(true);
+    try {
+      const response = await postsFirestoreApi.getUserPosts(currentUser.uid);
+      setMyPosts(response.posts);
+    } catch (error) {
+      console.error('Failed to load my posts:', error);
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  const handleLikeUpdate = (postId: string, liked: boolean) => {
+    setMyPosts(myPosts.map(post => 
+      post.id === postId 
+        ? { ...post, likeCount: post.likeCount + (liked ? 1 : -1) }
+        : post
+    ));
+  };
+
   // Helper functions for display (Firestore から取得した値は既に日本語のため不要)
 
   const formatDate = (dateString: string) => {
@@ -153,23 +186,65 @@ const ProfilePage: React.FC = () => {
   return (
     <div className="profile-page">
       <div className="profile-container">
-        <h2>プロフィール編集</h2>
-        
-        <div className="profile-info">
-          <div className="profile-header">
-            <div className="profile-avatar">
-              <div className="avatar-placeholder">
-                {profile.username.charAt(0).toUpperCase()}
+        <div className="profile-header-section">
+          <div className="profile-info-card">
+            <div className="profile-header">
+              <div className="profile-avatar">
+                <div className="avatar-placeholder">
+                  {profile.username.charAt(0).toUpperCase()}
+                </div>
+              </div>
+              <div className="profile-basic">
+                <h3>{profile.username}</h3>
+                <p className="join-date">参加日: {formatDate(profile.createdAt?.toISOString() || new Date().toISOString())}</p>
               </div>
             </div>
-            <div className="profile-basic">
-              <h3>{profile.username}</h3>
-              <p className="join-date">参加日: {formatDate(profile.createdAt?.toISOString() || new Date().toISOString())}</p>
-            </div>
+          </div>
+
+          <div className="profile-tabs">
+            <button
+              className={`profile-tab ${activeTab === 'posts' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('posts');
+                if (currentUser?.uid) {
+                  loadMyPosts();
+                }
+              }}
+            >
+              過去の投稿
+            </button>
+            <button
+              className={`profile-tab ${activeTab === 'edit' ? 'active' : ''}`}
+              onClick={() => setActiveTab('edit')}
+            >
+              プロフィール編集
+            </button>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="profile-form">
+        {activeTab === 'posts' && (
+          <div className="profile-posts-section">
+            {loadingPosts ? (
+              <div className="loading">読み込み中...</div>
+            ) : myPosts.length === 0 ? (
+              <div className="no-posts">まだ投稿がありません</div>
+            ) : (
+              <div className="posts-list">
+                {myPosts.map((post) => (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    onLikeUpdate={handleLikeUpdate}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'edit' && (
+          <div className="profile-edit-section">
+            <form onSubmit={handleSubmit} className="profile-form">
           <div className="form-section">
             <h4>基本情報</h4>
             
@@ -263,6 +338,8 @@ const ProfilePage: React.FC = () => {
             </button>
           </div>
         </form>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -267,6 +267,44 @@ export const postsFirestoreApi = {
     return { post };
   },
 
+  // 特定ユーザーの投稿一覧取得
+  getUserPosts: async (userId: string): Promise<{ posts: Post[] }> => {
+    const q = query(
+      collection(db, 'posts'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc'),
+      limit(50)
+    );
+    
+    const snapshot = await getDocs(q);
+    const posts: Post[] = [];
+    
+    if (snapshot.empty) {
+      return { posts: [] };
+    }
+    
+    // ユーザー情報を取得（投稿者は自分なので1件のみ）
+    const user = await getUsersBatch([userId]);
+    const username = user.get(userId)?.username || 'Unknown User';
+    
+    // 投稿データを構築
+    for (const docSnapshot of snapshot.docs) {
+      const data = docSnapshot.data();
+      
+      posts.push({
+        id: docSnapshot.id,
+        userId: data.userId,
+        username: username,
+        contentText: data.contentText,
+        likeCount: data.likesCount || 0,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
+      });
+    }
+    
+    return { posts };
+  },
+
   // いいね機能
   toggleLike: async (postId: string, userId: string): Promise<{ liked: boolean }> => {
     const likeRef = doc(db, 'postLikes', `${postId}_${userId}`);

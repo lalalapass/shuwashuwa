@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { chatFirestoreApi } from '../services/firestore';
 import { useAuth } from '../context/AuthContext';
 import MessageList from '../components/Chat/MessageList';
@@ -137,7 +137,20 @@ const ChatDetailPage: React.FC = () => {
             <button onClick={handleBackToList} className="back-button">
               ← チャット一覧に戻る
             </button>
-            <h2 className="page-title">{room.otherUsername}さんとのチャット</h2>
+            <h2 className="page-title">
+              {room.otherUsername && currentUser && (
+                <>
+                  <Link 
+                    to={`/users/${room.user1Id === currentUser.uid ? room.user2Id : room.user1Id}`} 
+                    className="username-link"
+                  >
+                    {room.otherUsername}
+                  </Link>
+                  さんとのチャット
+                </>
+              )}
+              {!room.otherUsername && 'チャット'}
+            </h2>
           </div>
         </div>
 

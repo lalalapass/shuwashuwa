@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { friendRequestsFirestoreApi } from '../../services/firestore';
 import type { FriendRequest } from '../../types/api';
 
@@ -40,7 +41,11 @@ const RequestCard: React.FC<RequestCardProps> = ({ request, onRequestHandled }) 
     <div className="request-card">
       <div className="request-header">
         <div className="sender-info">
-          <strong>{request.senderUsername}</strong>
+          <strong>
+            <Link to={`/users/${request.senderId}`} className="username-link">
+              {request.senderUsername}
+            </Link>
+          </strong>
           <span className="request-date">{formatDate(request.createdAt?.toISOString() || new Date().toISOString())}</span>
         </div>
       </div>

@@ -860,6 +860,8 @@ button:disabled {
 .user-header .user-info h3 {
   margin-bottom: 0;
   color: #2c3e50;
+  font-size: 1.5rem;
+  font-weight: 600;
 }
 
 .user-details {
@@ -1998,14 +2000,36 @@ button:disabled {
 
 /* Username Link in User Card */
 .username-link {
-  color: #2c3e50;
-  text-decoration: none;
-  transition: color 0.2s;
+  color: #007bff;
+  text-decoration: underline;
+  text-decoration-color: rgba(0, 123, 255, 0.4);
+  text-underline-offset: 3px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  font-weight: 600;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.username-link::after {
+  content: '→';
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: all 0.2s ease;
+  font-size: 0.9em;
 }
 
 .username-link:hover {
-  color: #007bff;
-  text-decoration: underline;
+  color: #0056b3;
+  text-decoration-color: #0056b3;
+  transform: translateX(2px);
+}
+
+.username-link:hover::after {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 /* User Profile Page */

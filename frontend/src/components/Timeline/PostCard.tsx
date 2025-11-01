@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { postsFirestoreApi } from '../../services/firestore';
 import { useAuth } from '../../context/AuthContext';
 import LikedUsersModal from './LikedUsersModal';
@@ -109,7 +110,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLikeUpdate, showMenu = fals
       <div className="post-card">
         <div className="post-header">
           <div className="user-info">
-            <strong>{post.username || 'Unknown User'}</strong>
+            <strong>
+              <Link to={`/users/${post.userId}`} className="username-link">
+                {post.username || 'Unknown User'}
+              </Link>
+            </strong>
             <span className="post-date">{formatDate(post.createdAt?.toISOString() || new Date().toISOString())}</span>
           </div>
           {showMenu && (

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { postsFirestoreApi } from '../../services/firestore';
 import type { User } from '../../types/api';
 
@@ -67,7 +68,11 @@ const LikedUsersModal: React.FC<LikedUsersModalProps> = ({ postId, isOpen, onClo
                     </div>
                   </div>
                   <div className="user-info-small">
-                    <strong>{user.username}</strong>
+                    <strong>
+                      <Link to={`/users/${user.id}`} className="username-link">
+                        {user.username}
+                      </Link>
+                    </strong>
                   </div>
                 </div>
               ))}

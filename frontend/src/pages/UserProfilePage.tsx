@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { friendRequestsFirestoreApi, usersFirestoreApi } from '../services/firestore';
+import { friendRequestsFirestoreApi, usersFirestoreApi, postsFirestoreApi } from '../services/firestore';
 import { useAuth } from '../context/AuthContext';
-import type { Profile } from '../types/api';
+import PostCard from '../components/Timeline/PostCard';
+import type { Profile, Post } from '../types/api';
 
 const UserProfilePage: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
@@ -14,6 +15,8 @@ const UserProfilePage: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const [message, setMessage] = useState('');
   const [showMessageForm, setShowMessageForm] = useState(false);
+  const [userPosts, setUserPosts] = useState<Post[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
   const { user: currentUser } = useAuth();
 
   useEffect(() => {
@@ -27,6 +30,12 @@ const UserProfilePage: React.FC = () => {
 
     loadProfile(userId);
   }, [userId, currentUser, navigate]);
+
+  useEffect(() => {
+    if (profile && userId) {
+      loadUserPosts(userId);
+    }
+  }, [profile, userId]);
 
   const loadProfile = async (userIdStr: string) => {
     setLoading(true);
@@ -73,6 +82,26 @@ const UserProfilePage: React.FC = () => {
     } finally {
       setIsSending(false);
     }
+  };
+
+  const loadUserPosts = async (userIdStr: string) => {
+    setLoadingPosts(true);
+    try {
+      const response = await postsFirestoreApi.getUserPosts(userIdStr);
+      setUserPosts(response.posts);
+    } catch (error) {
+      console.error('Failed to load user posts:', error);
+    } finally {
+      setLoadingPosts(false);
+    }
+  };
+
+  const handleLikeUpdate = (postId: string, liked: boolean) => {
+    setUserPosts(userPosts.map(post => 
+      post.id === postId 
+        ? { ...post, likeCount: post.likeCount + (liked ? 1 : -1) }
+        : post
+    ));
   };
 
   // Helper functions for display
@@ -164,16 +193,6 @@ const UserProfilePage: React.FC = () => {
             <div className="profile-info">
               <h2>{profile.username}</h2>
               <p className="join-date">参加日: {formatDate(profile.createdAt?.toISOString() || new Date().toISOString())}</p>
-              <div className="profile-stats">
-                <div className="stat">
-                  <span className="stat-number">{profile.postCount || 0}</span>
-                  <span className="stat-label">投稿</span>
-                </div>
-                <div className="stat">
-                  <span className="stat-number">{profile.friendCount || 0}</span>
-                  <span className="stat-label">友達</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -261,6 +280,26 @@ const UserProfilePage: React.FC = () => {
               </button>
             )}
           </div>
+        </div>
+
+        <div className="profile-posts-section">
+          <h3>過去の投稿</h3>
+          {loadingPosts ? (
+            <div className="loading">読み込み中...</div>
+          ) : userPosts.length === 0 ? (
+            <div className="no-posts">まだ投稿がありません</div>
+          ) : (
+            <div className="posts-list">
+              {userPosts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  onLikeUpdate={handleLikeUpdate}
+                  showMenu={false}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

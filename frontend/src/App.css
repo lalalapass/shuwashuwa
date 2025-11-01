@@ -1820,6 +1820,17 @@ button:disabled {
   gap: 2rem;
 }
 
+.user-profile-page .profile-posts-section {
+  padding: 0 2rem 2rem 2rem;
+}
+
+.user-profile-page .profile-posts-section h3 {
+  margin: 0 0 1rem 0;
+  color: #2c3e50;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #007bff;
+}
+
 .profile-posts-section .posts-list {
   display: flex;
   flex-direction: column;

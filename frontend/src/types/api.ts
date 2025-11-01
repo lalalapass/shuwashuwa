@@ -97,6 +97,15 @@ export interface VideoCallSession {
   endedAt?: Date;
 }
 
+export interface Block {
+  id: string;
+  blockerId: string;
+  blockedUserId: string;
+  blockedUsername: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface ApiResponse<T> {
   [key: string]: T;
 }

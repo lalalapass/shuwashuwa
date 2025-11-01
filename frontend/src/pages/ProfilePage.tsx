@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 // import { profileApi } from '../services/api'; // Firebase移行により不要
 import { useAuth } from '../context/AuthContext';
-import { usersFirestoreApi, postsFirestoreApi } from '../services/firestore';
+import { usersFirestoreApi, postsFirestoreApi, blocksFirestoreApi } from '../services/firestore';
 import PostCard from '../components/Timeline/PostCard';
-import type { Profile, Post } from '../types/api';
+import type { Profile, Post, Block } from '../types/api';
 
 const ProfilePage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'posts' | 'edit'>('posts');
+  const [activeTab, setActiveTab] = useState<'posts' | 'edit' | 'settings'>('posts');
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -14,6 +14,10 @@ const ProfilePage: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [myPosts, setMyPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<Block[]>([]);
+  const [loadingBlocks, setLoadingBlocks] = useState(false);
+  const [unblocking, setUnblocking] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const { user: currentUser, loading: authLoading, refreshUser } = useAuth();
 
   // Form state
@@ -36,8 +40,62 @@ const ProfilePage: React.FC = () => {
     if (!authLoading && currentUser?.uid && activeTab === 'posts') {
       loadMyPosts();
     }
+    if (!authLoading && currentUser?.uid && activeTab === 'settings') {
+      loadBlockedUsers();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, authLoading, currentUser?.uid]);
+
+  // メニュー外をクリックしたら閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.blocked-user-menu-container')) {
+        setOpenMenuId(null);
+      }
+    };
+
+    if (openMenuId) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [openMenuId]);
+
+  const loadBlockedUsers = async () => {
+    if (!currentUser?.uid) return;
+    
+    setLoadingBlocks(true);
+    try {
+      const response = await blocksFirestoreApi.getBlockedUsers(currentUser.uid);
+      setBlockedUsers(response.blocks);
+    } catch (error) {
+      console.error('Failed to load blocked users:', error);
+    } finally {
+      setLoadingBlocks(false);
+    }
+  };
+
+  const handleUnblockUser = async (blockedUserId: string, blockedUsername: string) => {
+    if (!currentUser?.uid) return;
+    
+    if (!window.confirm(`${blockedUsername}のブロックを解除しますか？`)) {
+      return;
+    }
+
+    setUnblocking(blockedUserId);
+    try {
+      await blocksFirestoreApi.unblockUser(currentUser.uid, blockedUserId);
+      setBlockedUsers(blockedUsers.filter(block => block.blockedUserId !== blockedUserId));
+      alert('ブロックを解除しました');
+    } catch (error: unknown) {
+      console.error('Failed to unblock user:', error);
+      alert('ブロック解除に失敗しました');
+    } finally {
+      setUnblocking(null);
+    }
+  };
 
   const loadProfile = async () => {
     setLoading(true);
@@ -132,7 +190,7 @@ const ProfilePage: React.FC = () => {
     
     setLoadingPosts(true);
     try {
-      const response = await postsFirestoreApi.getUserPosts(currentUser.uid);
+      const response = await postsFirestoreApi.getUserPosts(currentUser.uid, currentUser.uid);
       setMyPosts(response.posts);
     } catch (error) {
       console.error('Failed to load my posts:', error);
@@ -223,6 +281,12 @@ const ProfilePage: React.FC = () => {
               onClick={() => setActiveTab('edit')}
             >
               プロフィール編集
+            </button>
+            <button
+              className={`profile-tab ${activeTab === 'settings' ? 'active' : ''}`}
+              onClick={() => setActiveTab('settings')}
+            >
+              その他の設定
             </button>
           </div>
         </div>
@@ -345,6 +409,50 @@ const ProfilePage: React.FC = () => {
             </button>
           </div>
         </form>
+          </div>
+        )}
+
+        {activeTab === 'settings' && (
+          <div className="profile-settings-section">
+            <h3>ブロックしたユーザー</h3>
+            {loadingBlocks ? (
+              <div className="loading">読み込み中...</div>
+            ) : blockedUsers.length === 0 ? (
+              <div className="no-blocks">ブロックしたユーザーはいません</div>
+            ) : (
+              <div className="blocked-users-list">
+                {blockedUsers.map((block) => (
+                  <div key={block.id} className="blocked-user-item">
+                    <div className="blocked-user-info">
+                      <span className="blocked-username">{block.blockedUsername}</span>
+                    </div>
+                    <div className="blocked-user-menu-container">
+                      <button
+                        className="blocked-user-menu-button"
+                        onClick={() => setOpenMenuId(openMenuId === block.id ? null : block.id)}
+                        aria-label="メニュー"
+                      >
+                        ⋮
+                      </button>
+                      {openMenuId === block.id && (
+                        <div className="blocked-user-menu">
+                          <button
+                            className="blocked-user-menu-item"
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              handleUnblockUser(block.blockedUserId, block.blockedUsername);
+                            }}
+                            disabled={unblocking === block.blockedUserId}
+                          >
+                            {unblocking === block.blockedUserId ? '解除中...' : 'ブロック解除'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

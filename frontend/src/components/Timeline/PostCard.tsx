@@ -59,8 +59,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, onLikeUpdate, showMenu = fals
     try {
       const response = await postsFirestoreApi.toggleLike(post.id, user.uid);
       onLikeUpdate(post.id, response.liked);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to like post:', error);
+      const errorMessage = error?.message || 'いいねに失敗しました';
+      if (errorMessage.includes('ブロック')) {
+        alert(errorMessage);
+      }
     } finally {
       setIsLiking(false);
     }

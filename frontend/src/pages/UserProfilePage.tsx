@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { friendRequestsFirestoreApi, usersFirestoreApi, postsFirestoreApi } from '../services/firestore';
+import { friendRequestsFirestoreApi, usersFirestoreApi, postsFirestoreApi, blocksFirestoreApi } from '../services/firestore';
 import { useAuth } from '../context/AuthContext';
 import PostCard from '../components/Timeline/PostCard';
 import type { Profile, Post } from '../types/api';
@@ -17,6 +17,9 @@ const UserProfilePage: React.FC = () => {
   const [showMessageForm, setShowMessageForm] = useState(false);
   const [userPosts, setUserPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [isBlocking, setIsBlocking] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const { user: currentUser } = useAuth();
 
   useEffect(() => {
@@ -29,13 +32,42 @@ const UserProfilePage: React.FC = () => {
     }
 
     loadProfile(userId);
+    checkBlockStatus();
   }, [userId, currentUser, navigate]);
+
+  const checkBlockStatus = async () => {
+    if (!userId || !currentUser) return;
+    
+    try {
+      const result = await blocksFirestoreApi.isUserBlocked(currentUser.uid, userId);
+      setIsBlocked(result.isBlocked && result.blockedBy === currentUser.uid);
+    } catch (error) {
+      console.error('Failed to check block status:', error);
+    }
+  };
 
   useEffect(() => {
     if (profile && userId) {
       loadUserPosts(userId);
     }
   }, [profile, userId]);
+
+  // メニュー外をクリックしたら閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.profile-menu-container')) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showMenu]);
 
   const loadProfile = async (userIdStr: string) => {
     setLoading(true);
@@ -65,6 +97,18 @@ const UserProfilePage: React.FC = () => {
 
   const handleSendRequest = async () => {
     if (!profile || isSending) return;
+    
+    // ブロックチェック
+    try {
+      const blockCheck = await blocksFirestoreApi.isUserBlocked(currentUser?.uid || '', profile.id);
+      if (blockCheck.isBlocked) {
+        alert('このユーザーをブロックしているか、ブロックされているため、リクエストを送信できません');
+        return;
+      }
+    } catch (error) {
+      console.error('Failed to check block status:', error);
+    }
+
     setIsSending(true);
 
     try {
@@ -78,7 +122,8 @@ const UserProfilePage: React.FC = () => {
       setMessage('');
     } catch (error: unknown) {
       console.error('Failed to send friend request:', error);
-      alert('リクエストの送信に失敗しました');
+      const errorMessage = error instanceof Error ? error.message : 'リクエストの送信に失敗しました';
+      alert(errorMessage);
     } finally {
       setIsSending(false);
     }
@@ -87,7 +132,7 @@ const UserProfilePage: React.FC = () => {
   const loadUserPosts = async (userIdStr: string) => {
     setLoadingPosts(true);
     try {
-      const response = await postsFirestoreApi.getUserPosts(userIdStr);
+      const response = await postsFirestoreApi.getUserPosts(userIdStr, currentUser?.uid);
       setUserPosts(response.posts);
     } catch (error) {
       console.error('Failed to load user posts:', error);
@@ -102,6 +147,26 @@ const UserProfilePage: React.FC = () => {
         ? { ...post, likeCount: post.likeCount + (liked ? 1 : -1) }
         : post
     ));
+  };
+
+  const handleBlockUser = async () => {
+    if (!currentUser || !profile || isBlocking) return;
+    
+    if (!window.confirm(`${profile.username}をブロックしますか？\nブロックすると、このユーザーとの会話やリクエストができなくなります。`)) {
+      return;
+    }
+
+    setIsBlocking(true);
+    try {
+      await blocksFirestoreApi.blockUser(currentUser.uid, profile.id);
+      setIsBlocked(true);
+      alert('ユーザーをブロックしました');
+    } catch (error: unknown) {
+      console.error('Failed to block user:', error);
+      alert('ブロックに失敗しました');
+    } finally {
+      setIsBlocking(false);
+    }
   };
 
   // Helper functions for display
@@ -194,6 +259,35 @@ const UserProfilePage: React.FC = () => {
               <h2>{profile.username}</h2>
               <p className="join-date">参加日: {formatDate(profile.createdAt?.toISOString() || new Date().toISOString())}</p>
             </div>
+            <div className="profile-menu-container">
+              <button
+                className="profile-menu-button"
+                onClick={() => setShowMenu(!showMenu)}
+                aria-label="メニュー"
+              >
+                ⋮
+              </button>
+              {showMenu && (
+                <div className="profile-menu">
+                  {!isBlocked ? (
+                    <button
+                      className="profile-menu-item block-menu-item"
+                      onClick={() => {
+                        setShowMenu(false);
+                        handleBlockUser();
+                      }}
+                      disabled={isBlocking}
+                    >
+                      {isBlocking ? 'ブロック中...' : 'ユーザーをブロック'}
+                    </button>
+                  ) : (
+                    <div className="profile-menu-item block-menu-item disabled">
+                      ブロック済み
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -242,7 +336,11 @@ const UserProfilePage: React.FC = () => {
           )}
 
           <div className="profile-actions">
-            {isRequestSent ? (
+            {isBlocked ? (
+              <div className="blocked-notice">
+                ⚠ このユーザーをブロックしています
+              </div>
+            ) : isRequestSent ? (
               <div className="request-sent">
                 ✓ 会話リクエストを送信しました
               </div>

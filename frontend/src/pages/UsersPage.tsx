@@ -11,8 +11,11 @@ const UsersPage: React.FC = () => {
   const { user: currentUser } = useAuth();
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    if (currentUser?.uid) {
+      loadUsers();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.uid]);
 
   const loadUsers = async (filters?: {
     signLanguageLevel?: string;
@@ -28,7 +31,7 @@ const UsersPage: React.FC = () => {
       
       // 空のフィルターの場合はundefinedを渡す
       const searchFilters = filters && Object.keys(filters).length > 0 ? filters : undefined;
-      const response = await usersFirestoreApi.searchUsers(searchFilters);
+      const response = await usersFirestoreApi.searchUsers(searchFilters, currentUser?.uid);
       setUsers(response.users);
       console.log('Loaded users:', response.users.length, 'with filters:', searchFilters);
     } catch (error) {

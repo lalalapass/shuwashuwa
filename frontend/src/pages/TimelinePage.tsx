@@ -3,12 +3,14 @@ import { postsFirestoreApi } from '../services/firestore';
 import PostCard from '../components/Timeline/PostCard';
 import CreatePost from '../components/Timeline/CreatePost';
 import { useRefreshContext } from '../context/RefreshContext';
+import { useAuth } from '../context/AuthContext';
 import type { Post } from '../types/api';
 
 const TimelinePage: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const { registerRefreshFunction, unregisterRefreshFunction } = useRefreshContext();
+  const { user: currentUser } = useAuth();
 
   useEffect(() => {
     loadPosts();
@@ -20,11 +22,12 @@ const TimelinePage: React.FC = () => {
     return () => {
       unregisterRefreshFunction('timeline');
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.uid]);
 
   const loadPosts = async () => {
     try {
-      const response = await postsFirestoreApi.getPosts();
+      const response = await postsFirestoreApi.getPosts(currentUser?.uid);
       setPosts(response.posts);
     } catch (error) {
       console.error('Failed to load posts:', error);

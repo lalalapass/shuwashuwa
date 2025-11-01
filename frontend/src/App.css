@@ -2073,10 +2073,91 @@ button:disabled {
   gap: 1.5rem;
 }
 
+.profile-info {
+  flex: 1;
+}
+
 .profile-info h2 {
   margin: 0 0 0.5rem 0;
   color: #2c3e50;
   font-size: 1.8rem;
+}
+
+.profile-menu-container {
+  position: relative;
+  margin-left: auto;
+}
+
+.profile-menu-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #666;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.profile-menu-button:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #333;
+}
+
+.profile-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 180px;
+  z-index: 100;
+  overflow: hidden;
+  border: 1px solid #e0e0e0;
+}
+
+.profile-menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: #333;
+  font-size: 0.95rem;
+  transition: background-color 0.2s ease;
+}
+
+.profile-menu-item:hover:not(:disabled) {
+  background-color: #f5f5f5;
+}
+
+.profile-menu-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.profile-menu-item.block-menu-item {
+  color: #dc3545;
+}
+
+.profile-menu-item.block-menu-item:hover:not(:disabled) {
+  background-color: #fff5f5;
+  color: #c82333;
+}
+
+.profile-menu-item.disabled {
+  color: #999;
+  cursor: default;
 }
 
 .profile-stats {
@@ -3760,6 +3841,123 @@ button:disabled {
   color: #357abd;
   font-size: 1rem;
   font-weight: 600;
+}
+
+/* Profile Settings Section */
+.profile-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.profile-settings-section h3 {
+  margin: 0 0 1rem 0;
+  color: #2c3e50;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #007bff;
+}
+
+.blocked-users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.blocked-user-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  transition: all 0.2s ease;
+}
+
+.blocked-user-item:hover {
+  background: #f0f0f0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.blocked-user-info {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.blocked-username {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 1rem;
+}
+
+.blocked-user-menu-container {
+  position: relative;
+}
+
+.blocked-user-menu-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #666;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.blocked-user-menu-button:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #333;
+}
+
+.blocked-user-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 160px;
+  z-index: 100;
+  overflow: hidden;
+  border: 1px solid #e0e0e0;
+}
+
+.blocked-user-menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: #333;
+  font-size: 0.95rem;
+  transition: background-color 0.2s ease;
+}
+
+.blocked-user-menu-item:hover:not(:disabled) {
+  background-color: #f5f5f5;
+}
+
+.blocked-user-menu-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.no-blocks {
+  text-align: center;
+  padding: 2rem;
+  color: #7f8c8d;
+  font-size: 1rem;
 }
 
 .no-data {

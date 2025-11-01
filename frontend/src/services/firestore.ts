@@ -14,7 +14,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import type { User, Post, FriendRequest, ChatRoom, ChatMessage, Profile, VideoCallSchedule } from '../types/api';
+import type { User, Post, FriendRequest, ChatRoom, ChatMessage, Profile, VideoCallSchedule, Block } from '../types/api';
 
 // ユーザー情報キャッシュ
 const userCache = new Map<string, { user: User; timestamp: number }>();
@@ -85,7 +85,7 @@ export const usersFirestoreApi = {
     search?: string;
     gender?: string;
     ageGroup?: string;
-  }): Promise<{ users: User[] }> => {
+  }, currentUserId?: string): Promise<{ users: User[] }> => {
     try {
       // インデックス要件を最小化するため、基本的なクエリのみ使用
       let q = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(200));
@@ -127,6 +127,17 @@ export const usersFirestoreApi = {
         users = users.filter(user => 
           user.username.toLowerCase().includes(searchTerm)
         );
+      }
+      
+      // ブロックチェック: 現在のユーザーがログインしている場合、ブロック関係をチェック
+      if (currentUserId) {
+        const userIds = users.map(user => user.id);
+        const blockChecks = await Promise.all(
+          userIds.map(userId => 
+            blocksFirestoreApi.isUserBlocked(currentUserId, userId)
+          )
+        );
+        users = users.filter((user, index) => !blockChecks[index].isBlocked);
       }
       
       // 結果を50件に制限
@@ -200,7 +211,7 @@ export const usersFirestoreApi = {
 // Posts API
 export const postsFirestoreApi = {
   // 投稿一覧取得（最適化版）
-  getPosts: async (): Promise<{ posts: Post[] }> => {
+  getPosts: async (currentUserId?: string): Promise<{ posts: Post[] }> => {
     const q = query(
       collection(db, 'posts'),
       orderBy('createdAt', 'desc'),
@@ -220,9 +231,30 @@ export const postsFirestoreApi = {
     // バッチ読み取り: ユーザー情報を並列で取得
     const users = await getUsersBatch(userIds);
     
-    // 投稿データを構築
+    // ブロックチェック: 現在のユーザーがログインしている場合、ブロック関係をチェック
+    let blockedUserIds = new Set<string>();
+    if (currentUserId) {
+      const blockChecks = await Promise.all(
+        userIds.map(userId => 
+          blocksFirestoreApi.isUserBlocked(currentUserId, userId)
+        )
+      );
+      userIds.forEach((userId, index) => {
+        if (blockChecks[index].isBlocked) {
+          blockedUserIds.add(userId);
+        }
+      });
+    }
+    
+    // 投稿データを構築（ブロックされたユーザーの投稿は除外）
     for (const docSnapshot of snapshot.docs) {
       const data = docSnapshot.data();
+      
+      // ブロック関係がある場合はスキップ
+      if (currentUserId && blockedUserIds.has(data.userId)) {
+        continue;
+      }
+      
       const user = users.get(data.userId);
       const username = user?.username || 'Unknown User';
       
@@ -268,7 +300,16 @@ export const postsFirestoreApi = {
   },
 
   // 特定ユーザーの投稿一覧取得
-  getUserPosts: async (userId: string): Promise<{ posts: Post[] }> => {
+  getUserPosts: async (userId: string, currentUserId?: string): Promise<{ posts: Post[] }> => {
+    // ブロックチェック: 現在のユーザーがログインしている場合、ブロック関係をチェック
+    if (currentUserId && currentUserId !== userId) {
+      const blockCheck = await blocksFirestoreApi.isUserBlocked(currentUserId, userId);
+      if (blockCheck.isBlocked) {
+        // ブロック関係がある場合は空の配列を返す
+        return { posts: [] };
+      }
+    }
+    
     const q = query(
       collection(db, 'posts'),
       where('userId', '==', userId),
@@ -307,6 +348,25 @@ export const postsFirestoreApi = {
 
   // いいね機能
   toggleLike: async (postId: string, userId: string): Promise<{ liked: boolean }> => {
+    // 投稿の情報を取得してブロックチェック
+    const postRef = doc(db, 'posts', postId);
+    const postDoc = await getDoc(postRef);
+    
+    if (!postDoc.exists()) {
+      throw new Error('投稿が見つかりません');
+    }
+    
+    const postData = postDoc.data();
+    const postOwnerId = postData.userId;
+    
+    // 投稿の所有者が自分でない場合、ブロックチェック
+    if (postOwnerId !== userId) {
+      const blockCheck = await blocksFirestoreApi.isUserBlocked(userId, postOwnerId);
+      if (blockCheck.isBlocked) {
+        throw new Error('このユーザーをブロックしているか、ブロックされているため、いいねできません');
+      }
+    }
+    
     const likeRef = doc(db, 'postLikes', `${postId}_${userId}`);
     const likeDoc = await getDoc(likeRef);
     
@@ -418,6 +478,12 @@ export const friendRequestsFirestoreApi = {
     receiverId: string;
     message?: string;
   }): Promise<{ request: FriendRequest }> => {
+    // ブロックチェック
+    const blockCheck = await blocksFirestoreApi.isUserBlocked(data.senderId, data.receiverId);
+    if (blockCheck.isBlocked) {
+      throw new Error('このユーザーをブロックしているか、ブロックされているため、リクエストを送信できません');
+    }
+
     // 重複チェック：すでにpendingまたはacceptedのリクエストが存在する場合はエラー
     const existingCheck = await friendRequestsFirestoreApi.checkRequestExists(data.senderId, data.receiverId);
     if (existingCheck.exists && existingCheck.request && (existingCheck.request.status === 'pending' || existingCheck.request.status === 'accepted')) {
@@ -700,8 +766,20 @@ export const chatFirestoreApi = {
     // ユーザー情報をバッチで取得
     const users = await getUsersBatch(otherUserIds);
     
+    // ブロックされたユーザーとのルームを除外するためのチェック
+    const blockChecks = await Promise.all(
+      otherUserIds.map(otherUserId => 
+        blocksFirestoreApi.isUserBlocked(userId, otherUserId)
+      )
+    );
+    const blockedUserIds = new Set(
+      otherUserIds.filter((_, index) => blockChecks[index].isBlocked)
+    );
+    
     // バッチ読み取り: 各ルームの最新メッセージと未読数を並列で取得
-    const roomPromises = allRoomData.map(async (roomInfo) => {
+    const roomPromises = allRoomData
+      .filter(roomInfo => !blockedUserIds.has(roomInfo.otherUserId))
+      .map(async (roomInfo) => {
       const { docSnapshot, data, otherUserId } = roomInfo;
       const user = users.get(otherUserId);
       const otherUsername = user?.username || 'Unknown User';
@@ -867,6 +945,22 @@ export const chatFirestoreApi = {
     senderId: string;
     messageText?: string;
   }): Promise<{ message: ChatMessage }> => {
+    // チャットルームの情報を取得してブロックチェック
+    const roomRef = doc(db, 'chatRooms', roomId);
+    const roomDoc = await getDoc(roomRef);
+    
+    if (!roomDoc.exists()) {
+      throw new Error('チャットルームが見つかりません');
+    }
+    
+    const roomData = roomDoc.data();
+    const otherUserId = roomData.user1Id === data.senderId ? roomData.user2Id : roomData.user1Id;
+    
+    // ブロックチェック
+    const blockCheck = await blocksFirestoreApi.isUserBlocked(data.senderId, otherUserId);
+    if (blockCheck.isBlocked) {
+      throw new Error('このユーザーをブロックしているか、ブロックされているため、メッセージを送信できません');
+    }
     const messageData: any = {
       senderId: data.senderId,
       createdAt: serverTimestamp(),
@@ -991,5 +1085,123 @@ export const videoCallScheduleFirestoreApi = {
       status: action === 'accept' ? 'accepted' : 'rejected',
       updatedAt: serverTimestamp(),
     });
+  },
+};
+
+// Block API
+export const blocksFirestoreApi = {
+  // ユーザーをブロック
+  blockUser: async (blockerId: string, blockedUserId: string): Promise<{ block: Block }> => {
+    // 既にブロックされているかチェック
+    const existingBlock = await blocksFirestoreApi.isUserBlocked(blockerId, blockedUserId);
+    if (existingBlock.isBlocked) {
+      throw new Error('このユーザーは既にブロックされています');
+    }
+
+    // ブロックされたユーザー名を取得
+    let blockedUsername = 'Unknown User';
+    try {
+      const blockedUserDoc = await getDoc(doc(db, 'users', blockedUserId));
+      if (blockedUserDoc.exists()) {
+        blockedUsername = blockedUserDoc.data().username || 'Unknown User';
+      }
+    } catch (error) {
+      console.error('Failed to get blocked user info:', error);
+    }
+
+    const blockData = {
+      blockerId: blockerId,
+      blockedUserId: blockedUserId,
+      blockedUsername: blockedUsername,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+    
+    const docRef = await addDoc(collection(db, 'blocks'), blockData);
+    
+    const block: Block = {
+      id: docRef.id,
+      blockerId: blockerId,
+      blockedUserId: blockedUserId,
+      blockedUsername: blockedUsername,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    return { block };
+  },
+
+  // ブロックを解除
+  unblockUser: async (blockerId: string, blockedUserId: string): Promise<void> => {
+    const q = query(
+      collection(db, 'blocks'),
+      where('blockerId', '==', blockerId),
+      where('blockedUserId', '==', blockedUserId)
+    );
+    
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) {
+      throw new Error('ブロックが見つかりません');
+    }
+    
+    // ブロックを削除
+    const deletePromises = snapshot.docs.map(docSnapshot => deleteDoc(docSnapshot.ref));
+    await Promise.all(deletePromises);
+  },
+
+  // ブロックされたユーザー一覧を取得
+  getBlockedUsers: async (blockerId: string): Promise<{ blocks: Block[] }> => {
+    const q = query(
+      collection(db, 'blocks'),
+      where('blockerId', '==', blockerId),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const snapshot = await getDocs(q);
+    const blocks: Block[] = [];
+    
+    snapshot.forEach((docSnapshot) => {
+      const data = docSnapshot.data();
+      blocks.push({
+        id: docSnapshot.id,
+        blockerId: data.blockerId,
+        blockedUserId: data.blockedUserId,
+        blockedUsername: data.blockedUsername,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
+      });
+    });
+    
+    return { blocks };
+  },
+
+  // ユーザーがブロックされているかチェック（双方向）
+  isUserBlocked: async (userId1: string, userId2: string): Promise<{ isBlocked: boolean; blockedBy?: string }> => {
+    // userId1がuserId2をブロックしているかチェック
+    const q1 = query(
+      collection(db, 'blocks'),
+      where('blockerId', '==', userId1),
+      where('blockedUserId', '==', userId2)
+    );
+    
+    // userId2がuserId1をブロックしているかチェック
+    const q2 = query(
+      collection(db, 'blocks'),
+      where('blockerId', '==', userId2),
+      where('blockedUserId', '==', userId1)
+    );
+    
+    const [snapshot1, snapshot2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+    
+    if (!snapshot1.empty) {
+      return { isBlocked: true, blockedBy: userId1 };
+    }
+    
+    if (!snapshot2.empty) {
+      return { isBlocked: true, blockedBy: userId2 };
+    }
+    
+    return { isBlocked: false };
   },
 };

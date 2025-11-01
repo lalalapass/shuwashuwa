@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { friendRequestsFirestoreApi } from '../../services/firestore';
+import { friendRequestsFirestoreApi, blocksFirestoreApi } from '../../services/firestore';
 import { useAuth } from '../../context/AuthContext';
 import type { User } from '../../types/api';
 
@@ -66,6 +66,17 @@ const UserCard: React.FC<UserCardProps> = ({ user, currentUserId }) => {
       return;
     }
     
+    // ブロックチェック
+    try {
+      const blockCheck = await blocksFirestoreApi.isUserBlocked(currentUser.uid, user.id);
+      if (blockCheck.isBlocked) {
+        alert('このユーザーをブロックしているか、ブロックされているため、リクエストを送信できません');
+        return;
+      }
+    } catch (error) {
+      console.error('Failed to check block status:', error);
+    }
+    
     setIsSending(true);
 
     try {
@@ -91,7 +102,7 @@ const UserCard: React.FC<UserCardProps> = ({ user, currentUserId }) => {
     } catch (error: any) {
       console.error('Failed to send friend request:', error);
       const errorMessage = error?.message || 'リクエストの送信に失敗しました';
-      if (errorMessage.includes('すでにリクエストが送信されています')) {
+      if (errorMessage.includes('すでにリクエストが送信されています') || errorMessage.includes('ブロック')) {
         setIsRequestSent(true);
         setShowMessageForm(false);
         setMessage('');
